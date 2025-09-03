@@ -1,0 +1,227 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Room;
+use App\Models\Borrowing;
+use App\Http\Requests\Room\StoreRoomRequest;
+use App\Http\Requests\Room\UpdateRoomRequest;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class RoomController extends Controller
+{
+    public function __construct()
+    {
+        // Apply role middleware for specific actions
+        $this->middleware('role:admin,super-admin')->only(['create', 'store', 'edit', 'update', 'updateStatus']);
+        $this->middleware('role:super-admin')->only(['destroy']);
+    }
+
+    /**
+     * Display a listing of the rooms.
+     */
+    public function index(): Response
+    {
+        $rooms = Room::withCount(['borrowings' => function ($query) {
+            $query->where('status', 'active');
+        }])
+        ->with(['currentBorrowing' => function ($query) {
+            $query->where('status', 'active')
+                  ->with('user')
+                  ->latest('created_at'); // Use created_at as fallback until migration runs
+        }])
+        ->orderBy('name')
+        ->paginate(9) 
+        ->through(function ($room) {   // 2. lalu transform
+        $currentBorrowing = $room->currentBorrowing;
+
+        return [
+            'id' => $room->id,
+            'name' => $room->name,
+            'full_name' => $room->full_name,
+            'capacity' => $room->capacity,
+            'location' => $room->location,
+            'description' => $room->description,
+            'status' => $room->status,
+            'facilities' => $room->facilities,
+            'borrowings_count' => $room->borrowings_count,
+            'current_borrowing' => $currentBorrowing ? [
+                'id' => $currentBorrowing->id,
+                'borrower_name' => $currentBorrowing->borrower_name,
+                'user_name' => $currentBorrowing->user?->name ?? 'Unknown',
+                'borrowed_at' => $currentBorrowing->borrowed_at,
+                'planned_return_at' => $currentBorrowing->planned_return_at,
+                'purpose' => $currentBorrowing->purpose,
+            ] : null,
+            'created_at' => $room->created_at,
+            'updated_at' => $room->updated_at,
+        ];
+    })
+    ->withQueryString();
+
+        return Inertia::render('Rooms/Index', [
+            'rooms' => $rooms,
+            'can_manage' => auth()->user()->role === 'admin' || auth()->user()->role === 'super-admin',
+            'can_delete' => auth()->user()->role === 'super-admin',
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new room.
+     */
+    public function create(): Response
+    {
+        return Inertia::render('Rooms/create');
+    }
+
+    /**
+     * Store a newly created room in storage.
+     */
+    public function store(StoreRoomRequest $request)
+    {
+        $room = Room::create($request->validated());
+
+        return redirect()->route('Rooms.Index')
+            ->with('success', 'Ruangan berhasil ditambahkan.');
+    }
+
+    /**
+     * Display the specified room.
+     */
+    public function show(Room $room): Response
+    {
+        $room->load(['borrowings' => function ($query) {
+            $query->with('user')
+                  ->orderBy('created_at', 'desc') // Use created_at as fallback until migration runs
+                  ->limit(10);
+        }]);
+
+        // Get room statistics
+        $stats = [
+            'total_bookings' => $room->borrowings()->count(),
+            'active_bookings' => $room->borrowings()->where('status', 'active')->count(),
+            'completed_bookings' => $room->borrowings()->where('status', 'completed')->count(),
+            'monthly_bookings' => $room->borrowings()
+                ->whereMonth('created_at', now()->month) // Use created_at as fallback until migration runs
+                ->count(),
+        ];
+
+        // Get current borrowing if any
+        $currentBorrowing = $room->borrowings()
+            ->where('status', 'active')
+            ->with('user')
+            ->first();
+
+        // Get upcoming bookings
+        $upcomingBookings = $room->borrowings()
+            ->where('status', 'approved')
+            ->where('borrow_date', '>=', now()->toDateString()) // Use borrow_date instead of borrowed_at
+            ->with('user')
+            ->orderBy('borrow_date') // Use borrow_date instead of borrowed_at
+            ->limit(5)
+            ->get();
+
+                return Inertia::render('Rooms/Show', [
+                'room' => [
+                    'id' => $room->id,
+                    'name' => $room->name,
+                    'code' => $room->code,
+                    'description' => $room->description,
+                    'capacity' => $room->capacity,
+                    'status' => $room->status,
+                    'location' => $room->location,
+                    'notes' => $room->notes,
+                    'image_url' => $room->image_url,
+                    
+                    // ✅ Pastikan facilities selalu array
+                    'facilities' => $room->facilities
+                        ? (is_array($room->facilities)
+                            ? $room->facilities
+                            : json_decode($room->facilities, true))
+                        : [],
+
+                    // jika Anda punya relasi lain, kirim juga
+                    'equipment' => $room->equipment ?? [],
+                    'current_borrowing' => $room->currentBorrowing ?? null,
+                    'recent_borrowings' => $room->recentBorrowings ?? [],
+                    'upcoming_borrowings' => $room->upcomingBorrowings ?? [],
+                ]
+            ]);
+    }
+
+    /**
+     * Show the form for editing the specified room.
+     */
+    public function edit(Room $room): Response
+    {
+        return Inertia::render('Rooms/edit', [
+            'room' => [
+                'id' => $room->id,
+                'name' => $room->name,
+                'full_name' => $room->full_name,
+                'capacity' => $room->capacity,
+                'location' => $room->location,
+                'description' => $room->description,
+                'status' => $room->status,
+                'facilities' => $room->facilities,
+            ]
+        ]);
+    }
+
+    /**
+     * Update the specified room in storage.
+     */
+    public function update(UpdateRoomRequest $request, Room $room)
+    {
+        $room->update($request->validated());
+
+        return redirect()->route('Rooms.Show', $room)
+            ->with('success', 'Ruangan berhasil diperbarui.');
+    }
+
+    /**
+     * Update room status.
+     */
+    public function updateStatus(Request $request, Room $room)
+    {
+        $request->validate([
+            'status' => 'required|in:tersedia,dipakai,pemeliharaan'
+        ]);
+
+        $room->update(['status' => $request->status]);
+
+        return redirect()->back()
+            ->with('success', 'Status ruangan berhasil diperbarui.');
+    }
+
+    /**
+     * Remove the specified room from storage.
+     */
+    public function destroy(Room $room)
+    {
+        // Check if room has active borrowings
+        if ($room->borrowings()->where('status', 'active')->exists()) {
+            return redirect()->back()
+                ->with('error', 'Tidak dapat menghapus ruangan yang sedang dipinjam.');
+        }
+
+        $room->delete();
+
+        return redirect()->route('Rooms.Index')
+            ->with('success', 'Ruangan berhasil dihapus.');
+    }
+
+    /**
+     * Get available rooms for API calls.
+     */
+    public function available()
+    {
+        $rooms = Room::where('status', 'tersedia')
+            ->orderBy('name')
+            ->get(['id', 'name', 'full_name', 'capacity', 'location']);
+
+        return response()->json($rooms);
+    }
+}
