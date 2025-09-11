@@ -6,7 +6,7 @@ export interface User {
     email: string;
     email_verified_at: string | null;
     role: 'super-admin' | 'admin' | 'pengguna';
-    category: 'employee' | 'guest' | 'intern';
+    category: 'pegawai' | 'tamu' | 'magang';
     department: string | null;
     phone: string | null;
     address: string | null;
@@ -37,15 +37,15 @@ export interface User {
 
 export interface Room {
     id: number;
+    code: string;
     name: string;
     full_name?: string;
     description?: string;
     capacity: number;
-    status: 'available' | 'occupied' | 'maintenance';
+    status: 'tersedia' | 'dipakai' | 'pemeliharaan';
     facilities?: string[];
     location?: string;
     image?: string;
-    hourly_rate: number;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -75,12 +75,13 @@ export interface Borrowing {
     user_id: number;
     borrower_name: string;
     borrower_phone: string;
-    borrower_category: 'employee' | 'guest' | 'intern';
+    borrower_category: 'pegawai' | 'tamu' | 'magang';
     borrower_department?: string;
     borrower_institution?: string;
     purpose: string;
     borrowed_at: string;
     returned_at?: string;
+    actual_returned_date?: string;
     planned_return_at?: string;
     status: 'pending' | 'approved' | 'rejected' | 'active' | 'completed' | 'cancelled';
     notes?: string;
@@ -118,7 +119,7 @@ export interface Borrowing {
     is_completed?: boolean;
 }
 
-export interface CreateRoomData {
+export interface CreateRoomData extends Record<string, unknown>  {
     name: string;
     full_name?: string;
     description?: string;
@@ -126,7 +127,20 @@ export interface CreateRoomData {
     facilities?: string[];
     location?: string;
     image_url?: string;
-    hourly_rate?: number;
+    [key: string]: any;
+}
+
+export interface UpdateRoomData {
+  name: string;
+  full_name?: string;
+  description?: string;
+  capacity: number;
+  facilities: string[];
+  location?: string;
+  image_url?: string;
+  status: 'tersedia' | 'dipakai' | 'pemeliharaan';
+  is_active: boolean;
+ 
 }
 
 export interface BorrowingHistory {
@@ -170,7 +184,7 @@ export interface CreateBorrowingData {
   room_id: number;
   borrower_name: string;
   borrower_phone: string;
-  borrower_category: 'employee' | 'guest' | 'intern';
+  borrower_category: 'pegawai' | 'tamu' | 'magang';
   borrower_department?: string;
   borrower_institution?: string;
   purpose: string;
@@ -252,7 +266,7 @@ export interface CreateUserData {
     password: string;
     password_confirmation: string;
     role: 'admin' | 'user';
-    category: 'employee' | 'guest' | 'intern';
+    category: 'pegawai' | 'tamu' | 'magang';
     phone?: string;
     department?: string;
 }
@@ -374,6 +388,18 @@ export interface NavItem {
     children?: NavItem[];
 }
 
+export interface NavigationItem {
+    name: string;
+    href: string;
+    icon: React.ComponentType<{ className?: string }>;
+    adminOnly?: boolean;
+    superAdminOnly?: boolean;
+    current?: boolean;
+    badge?: number;
+    children?: NavigationItem[];
+    active?: boolean;
+}
+
 export interface BreadcrumbItem {
     label?: string;
     title?: string;
@@ -457,6 +483,10 @@ export interface RoomFilters {
     capacity_max?: number;
     location?: string;
     has_equipment?: string;
+    page?: number;
+    per_page?: number;
+    sort?: string;
+    direction?: 'asc' | 'desc';
 }
 
 export interface BorrowingFilters {
@@ -464,7 +494,7 @@ export interface BorrowingFilters {
     status?: 'pending' | 'approved' | 'rejected' | 'active' | 'completed' | 'cancelled' | 'all';
     room_id?: number;
     user_id?: number;
-    category?: 'employee' | 'guest' | 'intern' | 'all';
+    category?: 'pegawai' | 'tamu' | 'magang' | 'all';
     date_from?: string;
     date_to?: string;
 }
@@ -472,7 +502,7 @@ export interface BorrowingFilters {
 export interface UserFilters {
      search?: string;
     role?: 'super-admin' | 'admin' | 'user' | 'all';
-    category?: 'employee' | 'guest' | 'intern' | 'all';
+    category?: 'pegawai' | 'tamu' | 'magang' | 'all';
     is_active?: boolean | 'all';
     department?: string;
 }
@@ -625,7 +655,7 @@ export type RoomStatus = 'tersedia' | 'dipakai' | 'pemeliharaan';
 export type BorrowingStatus = 'pending' | 'approved' | 'rejected' | 'active' | 'completed' | 'cancelled';
 export type UserRole = 'super-admin' | 'admin' | 'user';
 export type BorrowerCategory = 'pegawai' | 'tamu' | 'anak-magang';
-export type UserCategory = 'employee' | 'guest' | 'intern';
+export type UserCategory = 'pegawai' | 'tamu' | 'anak-magang';
 export type EquipmentCondition = 'excellent' | 'good' | 'fair' | 'poor' | 'broken';
 
 // Event types for real-time updates

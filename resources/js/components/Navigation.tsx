@@ -1,319 +1,321 @@
-import { useState } from "react";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Avatar, AvatarFallback } from "./ui/avatar";
-import { Separator } from "./ui/separator";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { 
-  LayoutDashboard, 
-  Building, 
-  Users, 
-  Clock, 
-  History, 
-  Settings, 
-  LogOut, 
-  UserCheck,
-  Lock,
-  Menu,
-  X,
-  ChevronLeft,
-  ChevronRight
-} from "lucide-react";
-import { BPSLogo } from "./BPSLogo";
-import { useAuth } from "./AuthContext";
-import { useBPS } from "./BPSContext";
+import { useState } from 'react';
+import { Link, usePage } from '@inertiajs/react';
+import { Button } from './ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { Badge } from './ui/badge';
+import { BPSLogo } from './BPSLogo';
+import {
+    LayoutDashboard,
+    Building,
+    Users,
+    Calendar,
+    History,
+    Settings,
+    LogOut,
+    User as UserIcon,
+    Menu,
+    X,
+    ChevronDown,
+    Lock
+} from 'lucide-react';
+import { PageProps } from '@/types';
 
-interface NavigationProps {
-  activeView: string;
-  onViewChange: (view: string) => void;
-  onLogout: () => void;
-  collapsed: boolean;
-  onToggleCollapse: () => void;
+interface NavItem {
+    label: string;
+    href: string;
+    icon: any;
+    permission?: string;
+    active?: boolean;
 }
 
-export function Navigation({ activeView, onViewChange, onLogout, collapsed, onToggleCollapse }: NavigationProps) {
-  const { user } = useAuth();
-  const { borrowers, canApproveRejects, canManageRooms, canManageUsers } = useBPS();
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
-
-  const pendingCount = borrowers.filter(b => b.status === "pending").length;
-
-  // Check access for menu items
-  const hasAccess = (item: string) => {
-    switch (item) {
-      case "rooms":
-        return canManageRooms();
-      case "approvals":
-        return canApproveRejects();
-      case "users":
-        return canManageUsers();
-      default:
-        return true;
-    }
-  };
-
-  const menuItems = [
-    {
-      id: "Dashboard",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-      badge: null,
-      restricted: false
-    },
-    {
-      id: "rooms",
-      label: "Manajemen Ruangan",
-      icon: Building,
-      badge: null,
-      restricted: !hasAccess("rooms")
-    },
-    {
-      id: "borrowers",
-      label: "Peminjaman",
-      icon: Users,
-      badge: null,
-      restricted: false
-    },
-    {
-      id: "approvals",
-      label: "Persetujuan",
-      icon: UserCheck,
-      badge: pendingCount > 0 ? pendingCount : null,
-      restricted: !hasAccess("approvals")
-    },
-    {
-      id: "history",
-      label: "Riwayat",
-      icon: History,
-      badge: null,
-      restricted: false
-    },
-    {
-      id: "users",
-      label: "Manajemen Pengguna",
-      icon: Users,
-      badge: null,
-      restricted: !hasAccess("users")
-    },
-    {
-      id: "settings",
-      label: "Pengaturan",
-      icon: Settings,
-      badge: null,
-      restricted: false
-    }
-  ];
-
-  const getRoleInfo = () => {
-    switch (user?.role) {
-      case "super-admin":
-        return { label: "Super Admin", className: "role-super-admin" };
-      case "admin":
-        return { label: "Administrator", className: "role-admin" };
-      default:
-        return { label: "Pengguna", className: "role-user" };
-    }
-  };
-
-  const roleInfo = getRoleInfo();
-
-  const NavItem = ({ item }: { item: typeof menuItems[0] }) => {
-    const Icon = item.icon;
-    const isActive = activeView === item.id;
+export function Navigation() {
+    const { auth, url } = usePage<PageProps>().props;
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     
-    const content = (
-      <Button
-        variant={isActive ? "default" : "ghost"}
-        onClick={() => onViewChange(item.id)}
-        disabled={item.restricted}
-        className={`
-          w-full justify-start gap-3 h-12 px-4 transition-all duration-200
-          ${collapsed ? 'px-3' : 'px-4'}
-          ${isActive 
-            ? 'bg-primary text-primary-foreground shadow-md' 
-            : item.restricted 
-              ? 'text-muted-foreground hover:text-muted-foreground hover:bg-muted/30 cursor-not-allowed opacity-60'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-          }
-        `}
-      >
-        <div className="relative flex items-center gap-3">
-          <Icon className={`${collapsed ? 'h-5 w-5' : 'h-5 w-5'} flex-shrink-0`} />
-          {item.restricted && (
-            <Lock className="h-3 w-3 absolute -top-1 -right-1 text-red-400" />
-          )}
-          {!collapsed && (
-            <>
-              <span className="truncate">{item.label}</span>
-              {item.badge && (
-                <Badge className="ml-auto bg-red-500 text-white text-xs px-2 animate-pulse">
-                  {item.badge}
-                </Badge>
-              )}
-            </>
-          )}
-        </div>
-      </Button>
+    const user = auth.user;
+    
+    const navItems: NavItem[] = [
+        {
+            label: 'Dashboard',
+            href: 'dashboard',
+            icon: LayoutDashboard,
+        },
+        {
+            label: 'Ruangan',
+            href: 'rooms.index',
+            icon: Building,
+        },
+        {
+            label: 'Peminjaman',
+            href: 'borrowings.index',
+            icon: Calendar,
+        },
+        {
+            label: 'Persetujuan',
+            href: 'approvals.index',
+            icon: Users,
+            permission: 'can_approve_rejects',
+        },
+        {
+            label: 'Pengguna',
+            href: 'users.index',
+            icon: Users,
+            permission: 'can_manage_users',
+        },
+        {
+            label: 'Riwayat',
+            href: 'history.index',
+            icon: History,
+        },
+        {
+            label: 'Pengaturan',
+            href: 'settings.index',
+            icon: Settings,
+        },
+    ];
+
+    const canAccess = (permission?: string) => {
+        if (!permission || !user) return true;
+        return user[permission as keyof typeof user] === true;
+    };
+
+    const isActive = (href: string) => {
+        return url.startsWith('/' + href.replace('.', '/'));
+    };
+
+    const handleLogout = () => {
+        if (confirm('Apakah Anda yakin ingin keluar?')) {
+            // Using Inertia's post method for logout
+            window.location.href = route('logout');
+        }
+    };
+
+    return (
+        <>
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:flex bg-white border-b border-gray-200 px-6 py-4">
+                <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
+                    {/* Logo */}
+                    <Link href={route('dashboard')} className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg">
+                            <BPSLogo className="text-white" size="sm" />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-gray-900">BPS Riau</h1>
+                            <p className="text-xs text-gray-600">Sistem Manajemen</p>
+                        </div>
+                    </Link>
+
+                    {/* Navigation Items */}
+                    <div className="flex items-center gap-2">
+                        {navItems.map((item) => {
+                            const Icon = item.icon;
+                            const hasAccess = canAccess(item.permission);
+                            const active = isActive(item.href);
+
+                            return (
+                                <div key={item.href} className="relative">
+                                    {hasAccess ? (
+                                        <Link href={route(item.href)}>
+                                            <Button
+                                                variant={active ? "default" : "ghost"}
+                                                size="sm"
+                                                className="flex items-center gap-2"
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                                {item.label}
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled
+                                            className="flex items-center gap-2 opacity-60"
+                                        >
+                                            <Lock className="h-4 w-4" />
+                                            {item.label}
+                                        </Button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* User Menu */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="flex items-center gap-3 p-2">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={user?.avatar || ''} alt={user?.name || ''} />
+                                    <AvatarFallback>
+                                        {user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="text-left">
+                                    <p className="text-sm font-medium">{user?.name}</p>
+                                    <p className="text-xs text-muted-foreground capitalize">
+                                        {user?.role_label || user?.role}
+                                    </p>
+                                </div>
+                                <ChevronDown className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>
+                                <div className="flex flex-col space-y-1">
+                                    <p className="text-sm font-medium leading-none">{user?.name}</p>
+                                    <p className="text-xs leading-none text-muted-foreground">
+                                        {user?.email}
+                                    </p>
+                                </div>
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem asChild>
+                                <Link href={route('profile.edit')} className="flex items-center gap-2">
+                                    <UserIcon className="h-4 w-4" />
+                                    Edit Profil
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                                <Link href={route('settings.index')} className="flex items-center gap-2">
+                                    <Settings className="h-4 w-4" />
+                                    Pengaturan
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                className="flex items-center gap-2 text-red-600 focus:text-red-600"
+                                onClick={handleLogout}
+                            >
+                                <LogOut className="h-4 w-4" />
+                                Keluar
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </nav>
+
+            {/* Mobile Navigation */}
+            <nav className="lg:hidden bg-white border-b border-gray-200">
+                <div className="px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        {/* Logo */}
+                        <Link href={route('dashboard')} className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
+                                <BPSLogo className="text-white" size="xl" />
+                            </div>
+                            <div>
+                                <h1 className="font-bold text-gray-900 text-sm">BPS Riau</h1>
+                            </div>
+                        </Link>
+
+                        {/* Mobile Menu Button */}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        >
+                            {isMobileMenuOpen ? (
+                                <X className="h-5 w-5" />
+                            ) : (
+                                <Menu className="h-5 w-5" />
+                            )}
+                        </Button>
+                    </div>
+
+                    {/* Mobile Menu */}
+                    {isMobileMenuOpen && (
+                        <div className="mt-4 space-y-2">
+                            {navItems.map((item) => {
+                                const Icon = item.icon;
+                                const hasAccess = canAccess(item.permission);
+                                const active = isActive(item.href);
+
+                                return (
+                                    <div key={item.href}>
+                                        {hasAccess ? (
+                                            <Link href={route(item.href)}>
+                                                <Button
+                                                    variant={active ? "default" : "ghost"}
+                                                    size="sm"
+                                                    className="w-full justify-start gap-2"
+                                                    onClick={() => setIsMobileMenuOpen(false)}
+                                                >
+                                                    <Icon className="h-4 w-4" />
+                                                    {item.label}
+                                                </Button>
+                                            </Link>
+                                        ) : (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled
+                                                className="w-full justify-start gap-2 opacity-60"
+                                            >
+                                                <Lock className="h-4 w-4" />
+                                                {item.label}
+                                            </Button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            <div className="border-t pt-2 mt-4">
+                                <div className="flex items-center gap-3 p-2">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarImage src={user?.avatar || ''} alt={user?.name || ''} />
+                                        <AvatarFallback>
+                                            {user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="text-sm font-medium">{user?.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {user?.role_label || user?.role}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1 mt-2">
+                                    <Link href={route('profile.edit')}>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full justify-start gap-2"
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                        >
+                                            <UserIcon className="h-4 w-4" />
+                                            Edit Profil
+                                        </Button>
+                                    </Link>
+
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full justify-start gap-2 text-red-600"
+                                        onClick={() => {
+                                            setIsMobileMenuOpen(false);
+                                            handleLogout();
+                                        }}
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        Keluar
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </nav>
+        </>
     );
-
-    if (collapsed && item.restricted) {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {content}
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={10}>
-              <div className="text-center">
-                <p className="font-medium">{item.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  🔒 Akses Terbatas
-                </p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-    }
-
-    if (collapsed) {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {content}
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={10}>
-              <div className="text-center">
-                <p className="font-medium">{item.label}</p>
-                {item.badge && (
-                  <Badge className="bg-red-500 text-white text-xs mt-1">
-                    {item.badge}
-                  </Badge>
-                )}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-    }
-
-    return content;
-  };
-
-  return (
-    <>
-      {/* Mobile Menu Button */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setShowMobileMenu(!showMobileMenu)}
-          className="bg-background/80 backdrop-blur-sm"
-        >
-          {showMobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      {/* Mobile Overlay */}
-      {showMobileMenu && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={() => setShowMobileMenu(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div className={`
-        fixed left-0 top-0 h-full bg-sidebar border-r border-sidebar-border z-40 transition-all duration-300
-        ${collapsed ? 'w-20' : 'w-72'}
-        ${showMobileMenu ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="p-6 border-b border-sidebar-border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-sidebar-primary flex items-center justify-center shadow-lg">
-                  <BPSLogo className="text-sidebar-primary-foreground" size="md" />
-                </div>
-                {!collapsed && (
-                  <div>
-                    <h2 className="text-sidebar-foreground font-bold">BPS Riau</h2>
-                    <p className="text-sidebar-foreground/70 text-xs">Sistem Manajemen</p>
-                  </div>
-                )}
-              </div>
-              
-              {/* Desktop Collapse Button */}
-              <div className="hidden md:block">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onToggleCollapse}
-                  className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                >
-                  {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* User Info */}
-          <div className="p-4 border-b border-sidebar-border">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground">
-                  {user?.name?.substring(0, 2).toUpperCase() || "UN"}
-                </AvatarFallback>
-              </Avatar>
-              {!collapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sidebar-foreground font-medium truncate">
-                    {user?.name || "Unknown User"}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`${roleInfo.className} text-xs`}>
-                      {roleInfo.label}
-                    </Badge>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Navigation Menu */}
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {menuItems.map((item) => (
-              <NavItem key={item.id} item={item} />
-            ))}
-          </nav>
-
-          {/* Footer */}
-          <div className="p-4 border-t border-sidebar-border">
-            <Button
-              variant="ghost"
-              onClick={onLogout}
-              className={`
-                w-full justify-start gap-3 h-12 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
-                ${collapsed ? 'px-3' : 'px-4'}
-              `}
-            >
-              <LogOut className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span>Keluar</span>}
-            </Button>
-            
-            {!collapsed && (
-              <div className="mt-4 text-center">
-                <p className="text-xs text-sidebar-foreground/50">
-                  © 2024 BPS Provinsi Riau
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  );
 }

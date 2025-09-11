@@ -1,222 +1,142 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
     Calendar,
-    Search,
     Plus,
+    Search,
     Filter,
-    Eye,
-    Edit,
-    Trash2,
-    Users,
-    MapPin,
     Clock,
+    User,
+    Building2,
+    Eye,
     CheckCircle,
     XCircle,
     AlertCircle,
-    MoreVertical,
-    Download,
-    RefreshCw,
-    Building2,
-    User,
-    ChevronLeft,
-    ChevronRight
+    Timer,
+    Users,
+    Activity,
+    MapPin,
+    CalendarDays,
+    ArrowUpRight,
+    TrendingUp
 } from 'lucide-react';
-import { cn, formatDateTime, formatDuration, getStatusColor, getStatusLabel, getUserInitials } from '@/lib/utils';
+import { toast } from 'sonner';
+import { cn, formatDateTime, getStatusColor, getStatusLabel, getUserInitials, debounce } from '@/lib/utils';
 import type { PageProps, Borrowing, PaginatedResponse, BorrowingFilters } from '@/types';
 
 interface BorrowingsPageProps extends PageProps {
     borrowings: PaginatedResponse<Borrowing>;
     filters: BorrowingFilters;
-    stats: {
-        total: number;
-        pending: number;
-        approved: number;
-        active: number;
-        completed: number;
-        rejected: number;
-        cancelled: number;
-    };
 }
 
-export default function BorrowingsIndex({ auth, borrowings, filters, stats }: BorrowingsPageProps) {
-    const [searchQuery, setSearchQuery] = useState(filters.search || '');
-    const [selectedStatus, setSelectedStatus] = useState<string>(filters.status || 'all');
-    const [isRefreshing, setIsRefreshing] = useState(false);
+// Mock data untuk gambar ruangan - dalam production akan dari database
+const getRoomImage = (roomName: string): string => {
+    const imageMap: { [key: string]: string } = {
+        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIwcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaXNjdXNzaW9uJTIwcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdWRpdG9yaXVtJTIwc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral'
+    };
+    
+    const roomCode = roomName.toUpperCase();
+    return imageMap[roomCode] || imageMap['A']; // Default fallback
+};
+
+export default function BorrowingsIndex({ auth, borrowings, filters }: BorrowingsPageProps) {
+    const [searchTerm, setSearchTerm] = useState(filters.search || '');
+    const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
 
     const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
 
-    const handleSearch = (query: string) => {
-        router.get('/Borrowings', {
-            ...filters,
-            search: query || undefined,
-        }, {
+    const handleSearch = debounce((value: string) => {
+        router.get('/Borrowings', { 
+            ...filters, 
+            search: value,
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
-    };
+    }, 300);
 
-    const handleStatusFilter = (status: string) => {
-        router.get('/Borrowings', {
-            ...filters,
+    const handleStatusFilter = (status: 'pending' | 'approved' | 'rejected' | 'active' | 'completed' | 'cancelled' | 'all') => {
+        setStatusFilter(status);
+        router.get('/Borrowings', { 
+            ...filters, 
             status: status === 'all' ? undefined : status,
-        }, {
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
     };
 
     const handlePageChange = (page: number) => {
-        router.get('/Borrowings', {
-            ...filters,
-            page
-        }, {
+        router.get('/Borrowings', { 
+            ...filters, 
+            page 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
     };
 
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        router.reload({
-            only: ['borrowings', 'stats'],
-            onFinish: () => {
-                setTimeout(() => setIsRefreshing(false), 1000);
-            }
-        });
-    };
 
-    const handleCancelBorrowing = async (borrowingId: number) => {
-        try {
-            await router.patch(`/Borrowings/${borrowingId}`, {
-                status: 'cancelled'
-            });
-        } catch (error) {
-            console.error('Failed to cancel borrowing:', error);
-        }
-    };
-
-    const handleCompleteBorrowing = async (borrowingId: number) => {
-        try {
-            await router.patch(`/Borrowings/${borrowingId}/complete`);
-        } catch (error) {
-            console.error('Failed to complete borrowing:', error);
-        }
-    };
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (searchQuery !== filters.search) {
-                handleSearch(searchQuery);
-            }
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
-
-    useEffect(() => {
-        setSelectedStatus(filters.status || 'all');
-    }, [filters.status]);
-
-    const statusCounts = {
-        all: stats.total,
-        pending: stats.pending,
-        approved: stats.approved,
-        active: stats.active,
-        completed: stats.completed,
-        rejected: stats.rejected,
-        cancelled: stats.cancelled,
-    };
 
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'pending':
-                return Clock;
+                return <Clock className="h-4 w-4" />;
             case 'approved':
-                return CheckCircle;
+                return <CheckCircle className="h-4 w-4" />;
             case 'rejected':
-                return XCircle;
+                return <XCircle className="h-4 w-4" />;
             case 'active':
-                return Users;
+                return <Timer className="h-4 w-4" />;
             case 'completed':
-                return CheckCircle;
+                return <CheckCircle className="h-4 w-4" />;
             case 'cancelled':
-                return XCircle;
+                return <XCircle className="h-4 w-4" />;
             default:
-                return Calendar;
+                return <AlertCircle className="h-4 w-4" />;
         }
     };
 
-    const canCancelBorrowing = (borrowing: Borrowing) => {
-        const isOwner = borrowing.user_id === auth.user.id;
-        const canCancel = ['pending', 'approved'].includes(borrowing.status);
-        return (isOwner || isAdmin) && canCancel;
+    const statusCounts = {
+        total: borrowings.total,
+        pending: borrowings.data.filter(b => b.status === 'pending').length,
+        approved: borrowings.data.filter(b => b.status === 'approved').length,
+        active: borrowings.data.filter(b => b.status === 'active').length,
+        completed: borrowings.data.filter(b => b.status === 'completed').length,
     };
 
-    const canCompleteBorrowing = (borrowing: Borrowing) => {
-        return borrowing.status === 'active' && isAdmin;
-    };
+
 
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Peminjaman Ruangan" />
 
             <div className="space-y-6">
-                {/* Header Section */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 className="text-3xl font-semibold text-gray-900">
+                {/* Header */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                        <h1 className="text-3xl font-semibold tracking-tight">
                             Peminjaman Ruangan
                         </h1>
-                        <p className="mt-2 text-gray-600">
-                            Kelola peminjaman ruangan BPS Riau
+                        <p className="text-muted-foreground">
+                            Kelola dan monitor peminjaman ruangan BPS Riau
                         </p>
                     </div>
-                    <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleRefresh}
-                            disabled={isRefreshing}
-                        >
-                            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                            Refresh
-                        </Button>
-                        {isAdmin && (
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href="/Borrowings/export">
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Export
-                                </Link>
-                            </Button>
-                        )}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <Button asChild>
                             <Link href="/Borrowings/Create">
                                 <Plus className="h-4 w-4 mr-2" />
@@ -227,355 +147,342 @@ export default function BorrowingsIndex({ auth, borrowings, filters, stats }: Bo
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-blue-700">Total</p>
-                                <p className="text-2xl font-bold text-blue-900">{stats.total}</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1 truncate">
+                                        Total Peminjaman
+                                    </p>
+                                    <p className="text-2xl font-bold tracking-tight">
+                                        {statusCounts.total}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <TrendingUp className="h-4 w-4 text-emerald-600" />
+                                        <span className="text-sm ml-1 font-medium text-emerald-600">
+                                            +12%
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-3 rounded-xl shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                                    <Calendar className="h-6 w-6" />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-yellow-700">Pending</p>
-                                <p className="text-2xl font-bold text-yellow-900">{stats.pending}</p>
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1 truncate">
+                                        Menunggu Persetujuan
+                                    </p>
+                                    <p className="text-2xl font-bold tracking-tight">
+                                        {statusCounts.pending}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                            Butuh review
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-3 rounded-xl shrink-0 bg-yellow-50 text-yellow-700 border-yellow-200">
+                                    <Clock className="h-6 w-6" />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-blue-700">Disetujui</p>
-                                <p className="text-2xl font-bold text-blue-900">{stats.approved}</p>
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1 truncate">
+                                        Disetujui
+                                    </p>
+                                    <p className="text-2xl font-bold tracking-tight">
+                                        {statusCounts.approved}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                            Siap digunakan
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-3 rounded-xl shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                                    <CheckCircle className="h-6 w-6" />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-emerald-700">Aktif</p>
-                                <p className="text-2xl font-bold text-emerald-900">{stats.active}</p>
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1 truncate">
+                                        Sedang Berlangsung
+                                    </p>
+                                    <p className="text-2xl font-bold tracking-tight">
+                                        {statusCounts.active}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <Activity className="h-4 w-4 text-emerald-600" />
+                                        <span className="text-sm ml-1 font-medium text-emerald-600">
+                                            Aktif
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-3 rounded-xl shrink-0 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                    <Timer className="h-6 w-6" />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-gray-700">Selesai</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-red-700">Ditolak</p>
-                                <p className="text-2xl font-bold text-red-900">{stats.rejected}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-orange-700">Dibatalkan</p>
-                                <p className="text-2xl font-bold text-orange-900">{stats.cancelled}</p>
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1 truncate">
+                                        Selesai
+                                    </p>
+                                    <p className="text-2xl font-bold tracking-tight">
+                                        {statusCounts.completed}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                            Diselesaikan
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-3 rounded-xl shrink-0 bg-gray-50 text-gray-700 border-gray-200">
+                                    <CheckCircle className="h-6 w-6" />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
                 {/* Filters */}
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
-                            <div className="relative flex-1 max-w-md">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input
-                                    placeholder="Cari peminjaman..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10"
-                                />
+                <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Search className="h-5 w-5" />
+                            Filter & Pencarian
+                        </CardTitle>
+                        <CardDescription>
+                            Cari dan filter peminjaman berdasarkan status atau kata kunci
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Cari peminjaman, ruangan, atau peminjam..."
+                                        value={searchTerm}
+                                        onChange={(e) => {
+                                            setSearchTerm(e.target.value);
+                                            handleSearch(e.target.value);
+                                        }}
+                                        className="pl-10"
+                                    />
+                                </div>
                             </div>
-                            <Select value={selectedStatus} onValueChange={handleStatusFilter}>
-                                <SelectTrigger className="w-full sm:w-48">
-                                    <SelectValue placeholder="Filter status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">
-                                        Semua Status ({statusCounts.all})
-                                    </SelectItem>
-                                    <SelectItem value="pending">
-                                        Pending ({statusCounts.pending})
-                                    </SelectItem>
-                                    <SelectItem value="approved">
-                                        Disetujui ({statusCounts.approved})
-                                    </SelectItem>
-                                    <SelectItem value="active">
-                                        Aktif ({statusCounts.active})
-                                    </SelectItem>
-                                    <SelectItem value="completed">
-                                        Selesai ({statusCounts.completed})
-                                    </SelectItem>
-                                    <SelectItem value="rejected">
-                                        Ditolak ({statusCounts.rejected})
-                                    </SelectItem>
-                                    <SelectItem value="cancelled">
-                                        Dibatalkan ({statusCounts.cancelled})
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center space-x-2">
+                                <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                                    <SelectTrigger className="w-48">
+                                        <SelectValue placeholder="Filter Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua Status</SelectItem>
+                                        <SelectItem value="pending">Menunggu Persetujuan</SelectItem>
+                                        <SelectItem value="approved">Disetujui</SelectItem>
+                                        <SelectItem value="active">Sedang Berlangsung</SelectItem>
+                                        <SelectItem value="completed">Selesai</SelectItem>
+                                        <SelectItem value="rejected">Ditolak</SelectItem>
+                                        <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Borrowings List */}
-                {(borrowings.data?.length || 0) === 0 ? (
-                    <Card>
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    {borrowings.data.map((borrowing) => (
+                        <Card key={borrowing.id} className="border-0 shadow-sm overflow-hidden group hover:shadow-md transition-all duration-200">
+                            <div className="relative h-48">
+                                <img
+                                    src={getRoomImage(borrowing.room?.name || 'A')}
+                                    alt={`Ruang ${borrowing.room?.name}`}
+                                    className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                
+                                {/* Status Badge */}
+                                <div className="absolute top-4 right-4">
+                                    <Badge variant="outline" className={cn("backdrop-blur-sm bg-white/90", getStatusColor(borrowing.status))}>
+                                        {getStatusIcon(borrowing.status)}
+                                        <span className="ml-2">{getStatusLabel(borrowing.status, 'borrowing')}</span>
+                                    </Badge>
+                                </div>
+                                
+                                {/* Room Info Overlay */}
+                                <div className="absolute bottom-4 left-4 right-4">
+                                    <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3">
+                                        <h3 className="text-white font-semibold text-lg">Ruang {borrowing.room?.name}</h3>
+                                        <p className="text-white/80 text-sm">#{borrowing.id} • {borrowing.participant_count} peserta</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <CardContent className="p-6">
+                                <div className="space-y-4">
+                                    {/* Borrower Info */}
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-10 w-10">
+                                            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                                                {getUserInitials(borrowing.borrower_name)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium truncate">{borrowing.borrower_name}</p>
+                                            <p className="text-sm text-muted-foreground truncate">{borrowing.borrower_phone}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Date & Time Info */}
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                                            <div>
+                                                <p className="font-medium">Waktu Mulai</p>
+                                                <p className="text-muted-foreground">{formatDateTime(borrowing.borrowed_at)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="h-4 w-4 text-muted-foreground" />
+                                            <div>
+                                                <p className="font-medium">
+                                                    {borrowing.actual_returned_date ? 'Selesai' : 'Target Selesai'}
+                                                </p>
+                                                <p className="text-muted-foreground">
+                                                    {formatDateTime(borrowing.actual_returned_date || borrowing.planned_return_at || '')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Purpose */}
+                                    {borrowing.purpose && (
+                                        <div className="p-3 bg-muted rounded-lg">
+                                            <p className="text-sm">
+                                                <span className="font-medium">Tujuan: </span>
+                                                <span className="text-muted-foreground">{borrowing.purpose}</span>
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Admin Notes */}
+                                    {borrowing.notes && (
+                                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                            <p className="text-sm text-blue-800">
+                                                <span className="font-medium">Catatan Admin: </span>
+                                                {borrowing.notes}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Rejection Reason */}
+                                    {borrowing.rejection_reason && (
+                                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                                            <p className="text-sm text-red-800">
+                                                <span className="font-medium">Alasan Ditolak: </span>
+                                                {borrowing.rejection_reason}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Action Button */}
+                                    <div className="pt-2">
+                                        <Button asChild className="w-full" variant="outline">
+                                            <Link href={`/Borrowings/${borrowing.id}`}>
+                                                <Eye className="h-4 w-4 mr-2" />
+                                                Lihat Detail Peminjaman
+                                                <ArrowUpRight className="h-4 w-4 ml-2" />
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
+                {/* Empty State */}
+                {borrowings.data.length === 0 && (
+                    <Card className="border-0 shadow-sm">
                         <CardContent className="p-12 text-center">
-                            <Calendar className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                {searchQuery ? 'Tidak ada peminjaman ditemukan' : 'Belum ada peminjaman'}
+                            <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                            <h3 className="font-semibold mb-2">
+                                Tidak ada peminjaman ditemukan
                             </h3>
-                            <p className="text-gray-600 mb-6">
-                                {searchQuery 
-                                    ? `Tidak ada peminjaman yang cocok dengan pencarian "${searchQuery}"`
-                                    : 'Buat peminjaman pertama untuk memulai'
+                            <p className="text-muted-foreground mb-6">
+                                {searchTerm || statusFilter !== 'all'
+                                    ? 'Coba ubah filter pencarian Anda untuk melihat hasil yang berbeda'
+                                    : 'Belum ada peminjaman ruangan yang dibuat di sistem'
                                 }
                             </p>
-                            {!searchQuery && (
+                            {!searchTerm && statusFilter === 'all' && (
                                 <Button asChild>
                                     <Link href="/Borrowings/Create">
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Buat Peminjaman
+                                        Buat Peminjaman Pertama
                                     </Link>
                                 </Button>
                             )}
                         </CardContent>
                     </Card>
-                ) : (
-                    <>
-                        <div className="space-y-4">
-                            {borrowings.data?.map((borrowing) => (
-                                <Card key={borrowing.id} className="overflow-hidden">
-                                    <CardContent className="p-6">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-start justify-between mb-4">
-                                                    <div>
-                                                        <div className="flex items-center space-x-3 mb-2">
-                                                            <h3 className="text-lg font-semibold text-gray-900">
-                                                                Ruang {borrowing.room?.name}
-                                                            </h3>
-                                                            <Badge 
-                                                                variant="outline" 
-                                                                className={cn("border", getStatusColor(borrowing.status))}
-                                                            >
-                                                                {getStatusLabel(borrowing.status, 'borrowing')}
-                                                            </Badge>
-                                                        </div>
-                                                        <p className="text-gray-600 mb-1">
-                                                            {borrowing.borrower_name} • {borrowing.borrower_category}
-                                                        </p>
-                                                        <p className="text-sm text-gray-500">
-                                                            {borrowing.purpose}
-                                                        </p>
-                                                    </div>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="sm">
-                                                                <MoreVertical className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem asChild>
-                                                                <Link href={`/Borrowings/${borrowing.id}`}>
-                                                                    <Eye className="h-4 w-4 mr-2" />
-                                                                    Detail
-                                                                </Link>
-                                                            </DropdownMenuItem>
-                                                            {(borrowing.user_id === auth.user.id || isAdmin) && borrowing.status === 'pending' && (
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/Borrowings/${borrowing.id}/edit`}>
-                                                                        <Edit className="h-4 w-4 mr-2" />
-                                                                        Edit
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            {canCompleteBorrowing(borrowing) && (
-                                                                <DropdownMenuItem onClick={() => handleCompleteBorrowing(borrowing.id)}>
-                                                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                                                    Selesaikan
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            {canCancelBorrowing(borrowing) && (
-                                                                <>
-                                                                    <DropdownMenuSeparator />
-                                                                    <AlertDialog>
-                                                                        <AlertDialogTrigger asChild>
-                                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                                <XCircle className="h-4 w-4 mr-2" />
-                                                                                Batalkan
-                                                                            </DropdownMenuItem>
-                                                                        </AlertDialogTrigger>
-                                                                        <AlertDialogContent>
-                                                                            <AlertDialogHeader>
-                                                                                <AlertDialogTitle>Batalkan Peminjaman</AlertDialogTitle>
-                                                                                <AlertDialogDescription>
-                                                                                    Apakah Anda yakin ingin membatalkan peminjaman ini? 
-                                                                                    Tindakan ini tidak dapat dibatalkan.
-                                                                                </AlertDialogDescription>
-                                                                            </AlertDialogHeader>
-                                                                            <AlertDialogFooter>
-                                                                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                                <AlertDialogAction
-                                                                                    onClick={() => handleCancelBorrowing(borrowing.id)}
-                                                                                    className="bg-red-600 hover:bg-red-700"
-                                                                                >
-                                                                                    Batalkan Peminjaman
-                                                                                </AlertDialogAction>
-                                                                            </AlertDialogFooter>
-                                                                        </AlertDialogContent>
-                                                                    </AlertDialog>
-                                                                </>
-                                                            )}
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
+                )}
 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <Clock className="h-4 w-4 mr-2" />
-                                                        {formatDateTime(borrowing.borrowed_at)}
-                                                    </div>
-                                                    {borrowing.planned_return_at && (
-                                                        <div className="flex items-center text-sm text-gray-600">
-                                                            <Calendar className="h-4 w-4 mr-2" />
-                                                            Sampai: {formatDateTime(borrowing.planned_return_at)}
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <Users className="h-4 w-4 mr-2" />
-                                                        {borrowing.participant_count} peserta
-                                                    </div>
-                                                </div>
-
-                                                {borrowing.admin_notes && (
-                                                    <div className="p-3 bg-gray-50 rounded-lg mb-4">
-                                                        <p className="text-sm font-medium text-gray-900 mb-1">
-                                                            Catatan Admin:
-                                                        </p>
-                                                        <p className="text-sm text-gray-700">
-                                                            {borrowing.admin_notes}
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {borrowing.rejection_reason && (
-                                                    <div className="p-3 bg-red-50 rounded-lg mb-4">
-                                                        <p className="text-sm font-medium text-red-900 mb-1">
-                                                            Alasan Penolakan:
-                                                        </p>
-                                                        <p className="text-sm text-red-700">
-                                                            {borrowing.rejection_reason}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between pt-4 border-t">
-                                            <div className="flex items-center space-x-4">
-                                                <div className="flex items-center space-x-2">
-                                                    <Avatar className="h-6 w-6">
-                                                        <AvatarFallback className="text-xs">
-                                                            {getUserInitials(borrowing.borrower_name)}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="text-sm text-gray-600">
-                                                        {borrowing.borrower_name}
-                                                    </span>
-                                                </div>
-                                                {borrowing.approver && (
-                                                    <div className="flex items-center space-x-2">
-                                                        <span className="text-sm text-gray-500">•</span>
-                                                        <span className="text-sm text-gray-600">
-                                                            Disetujui oleh {borrowing.approver.name}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <Button asChild variant="outline" size="sm">
-                                                    <Link href={`/borrowings/${borrowing.id}`}>
-                                                        <Eye className="h-4 w-4 mr-2" />
-                                                        Detail
-                                                    </Link>
-                                                </Button>
-                                                {borrowing.status === 'approved' && (
-                                                    <Badge className="bg-blue-100 text-blue-800">
-                                                        Siap Digunakan
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-
-                        {/* Pagination */}
-                        {borrowings.last_page > 1 && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-sm text-gray-700">
-                                            Menampilkan {borrowings.from} - {borrowings.to} dari {borrowings.total} peminjaman
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            {borrowings.links?.map((link, index) => (
-                                                <Button
-                                                    key={index}
-                                                    variant={link.active ? "default" : "outline"}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        if (link.url) {
-                                                            const url = new URL(link.url);
-                                                            const page = url.searchParams.get('page');
-                                                            if (page) {
-                                                                handlePageChange(parseInt(page));
-                                                            }
-                                                        }
-                                                    }}
-                                                    disabled={!link.url}
-                                                    className={cn(
-                                                        "min-w-[40px]",
-                                                        link.active && "bg-primary text-primary-foreground"
-                                                    )}
-                                                >
-                                                    {link.label === '&laquo; Previous' ? (
-                                                        <ChevronLeft className="h-4 w-4" />
-                                                    ) : link.label === 'Next &raquo;' ? (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    ) : (
-                                                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                    )}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </>
+                {/* Pagination */}
+                {borrowings.data.length > 0 && borrowings.last_page > 1 && (
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div className="text-sm text-muted-foreground">
+                                    Menampilkan <span className="font-medium">{borrowings.from}</span> sampai <span className="font-medium">{borrowings.to}</span> dari <span className="font-medium">{borrowings.total}</span> peminjaman
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(borrowings.current_page - 1)}
+                                        disabled={borrowings.current_page <= 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground px-3">
+                                        Halaman <span className="font-medium">{borrowings.current_page}</span> dari <span className="font-medium">{borrowings.last_page}</span>
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(borrowings.current_page + 1)}
+                                        disabled={borrowings.current_page >= borrowings.last_page}
+                                    >
+                                        Selanjutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </AuthenticatedLayout>

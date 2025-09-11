@@ -17,7 +17,7 @@ return new class extends Migration
                 $table->enum('role', ['super-admin', 'admin', 'user'])->default('user')->after('email_verified_at');
             }
             if (!Schema::hasColumn('users', 'category')) {
-                $table->enum('category', ['employee', 'guest', 'intern'])->default('employee')->after('role');
+                $table->enum('category', ['pegawai', 'tamu', 'anak-magang'])->default('pegawai')->after('role');
             }
             if (!Schema::hasColumn('users', 'phone')) {
                 $table->string('phone')->nullable()->after('category');
@@ -41,7 +41,6 @@ return new class extends Migration
                 $table->json('facilities')->nullable(); // AC, Projector, WiFi, etc.
                 $table->string('location')->nullable(); // Lantai 1, Gedung Utama
                 $table->string('image_url')->nullable();
-                $table->decimal('hourly_rate', 10, 2)->default(0); // Optional for government
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
                 
@@ -58,7 +57,7 @@ return new class extends Migration
                 $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Peminjam
                 $table->string('borrower_name');
                 $table->string('borrower_phone', 20);
-                $table->enum('borrower_category', ['employee', 'guest', 'intern']);
+                $table->enum('borrower_category', ['pegawai', 'tamu', 'anak-magang']);
                 $table->string('borrower_department')->nullable();
                 $table->string('borrower_institution')->nullable(); // For guests
                 $table->text('purpose'); // Tujuan peminjaman

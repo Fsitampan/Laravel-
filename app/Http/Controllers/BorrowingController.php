@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers;
 
 use App\Models\Borrowing;
@@ -14,7 +13,7 @@ use Illuminate\Support\Facades\Auth;
 class BorrowingController extends Controller
 {
     /**
-     * Tampilkan daftar peminjaman (list).
+     * Tampilkan daftar peminjaman.
      */
     public function index(Request $request): Response
     {
@@ -25,15 +24,21 @@ class BorrowingController extends Controller
 
         // Filter pencarian
         if ($request->search) {
-            $query->where('borrower_name', 'like', "%{$request->search}%")
+            $query->where(function ($q) use ($request) {
+                $q->where('borrower_name', 'like', "%{$request->search}%")
                   ->orWhere('purpose', 'like', "%{$request->search}%");
+            });
         }
         if ($request->status && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
-        $borrowings = $query->orderByDesc('created_at')->paginate(10)->withQueryString();
-        $borrowings->getCollection()->transform(fn($borrowing) => $borrowing->toInertiaArray());
+        $borrowings = $query->orderByDesc('created_at')
+            ->paginate(10)
+            ->withQueryString();
+
+        $borrowings->getCollection()
+            ->transform(fn($borrowing) => $borrowing->toInertiaArray());
 
         // Statistik status
         $stats = [
@@ -54,60 +59,62 @@ class BorrowingController extends Controller
     }
 
     /**
-     * Tampilkan form create.
+     * Form create peminjaman.
      */
     public function create(Request $request): Response
     {
-        $rooms = Room::where('status', 'tersedia')->where('is_active', true)->get();
-        $selectedRoom = null;
-        if ($request->room_id) {
-            $selectedRoom = $rooms->firstWhere('id', $request->room_id);
-        }
+        $rooms = Room::where('status', 'tersedia')
+            ->where('is_active', true)
+            ->get();
+
+        $selectedRoom = $request->room_id
+            ? $rooms->firstWhere('id', $request->room_id)
+            : null;
 
         return Inertia::render('Borrowings/Create', [
-            'rooms' => $rooms,
+            'rooms'        => $rooms,
             'selectedRoom' => $selectedRoom,
         ]);
     }
 
     /**
-     * Simpan data peminjaman baru.
+     * Simpan peminjaman baru.
      */
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
 
         $validated = $request->validate([
-            'room_id'             => 'required|exists:rooms,id',
-            'borrower_name'       => 'required|string|max:255',
-            'borrower_phone'      => 'required|string|max:30',
-            'borrower_category'   => 'required|string',
-            'borrower_department' => 'nullable|string|max:255',
-            'borrower_institution'=> 'nullable|string|max:255',
-            'purpose'             => 'required|string|max:255',
-            'borrowed_at'         => 'required|date',
-            'planned_return_at'   => 'required|date|after:borrowed_at',
-            'participant_count'   => 'required|integer|min:1',
-            'equipment_needed'    => 'nullable|array',
-            'equipment_needed.*'  => 'string|max:100',
-            'notes'               => 'nullable|string|max:255',
-            'is_recurring'        => 'boolean',
-            'recurring_pattern'   => 'nullable|string',
-            'recurring_end_date'  => 'nullable|date|after:borrowed_at',
+            'room_id'               => 'required|exists:rooms,id',
+            'borrower_name'         => 'required|string|max:255',
+            'borrower_email'        => 'nullable|email|max:255',
+            'borrower_phone'        => 'nullable|string|max:30',
+            'borrower_identification' => 'nullable|string|max:50',
+            'borrower_category'     => 'required|in:pegawai,tamu,anak-magang',
+            'borrower_department'   => 'nullable|string|max:255',
+            'borrow_date'           => 'required|date',
+            'start_time'            => 'required|date_format:H:i',
+            'end_time'              => 'required|date_format:H:i|after:start_time',
+            'return_date'           => 'nullable|date|after_or_equal:borrow_date',
+            'actual_return_date'    => 'nullable|date',
+            'purpose'               => 'required|string|max:500',
+            'notes'                 => 'nullable|string|max:500',
         ]);
 
-        $borrowing = Borrowing::create([
+        Borrowing::create([
             ...$validated,
             'user_id'    => $user->id,
             'created_by' => $user->id,
             'status'     => 'pending',
         ]);
 
-        return redirect()->route('borrowings.index')->with('success', 'Peminjaman berhasil diajukan.');
+        return redirect()
+            ->route('Borrowings.Index')
+            ->with('success', 'Peminjaman berhasil diajukan.');
     }
 
     /**
-     * Tampilkan form edit.
+     * Form edit peminjaman.
      */
     public function edit($id): Response
     {
@@ -121,44 +128,46 @@ class BorrowingController extends Controller
     }
 
     /**
-     * Update data peminjaman.
+     * Update peminjaman.
      */
     public function update(Request $request, $id): RedirectResponse
     {
         $borrowing = Borrowing::findOrFail($id);
 
         $validated = $request->validate([
-            'room_id'             => 'required|exists:rooms,id',
-            'borrower_name'       => 'required|string|max:255',
-            'borrower_phone'      => 'required|string|max:30',
-            'borrower_category'   => 'required|string',
-            'borrower_department' => 'nullable|string|max:255',
-            'borrower_institution'=> 'nullable|string|max:255',
-            'purpose'             => 'required|string|max:255',
-            'borrowed_at'         => 'required|date',
-            'planned_return_at'   => 'required|date|after:borrowed_at',
-            'participant_count'   => 'required|integer|min:1',
-            'equipment_needed'    => 'nullable|array',
-            'equipment_needed.*'  => 'string|max:100',
-            'notes'               => 'nullable|string|max:255',
-            'is_recurring'        => 'boolean',
-            'recurring_pattern'   => 'nullable|string',
-            'recurring_end_date'  => 'nullable|date|after:borrowed_at',
+            'room_id'               => 'required|exists:rooms,id',
+            'borrower_name'         => 'required|string|max:255',
+            'borrower_email'        => 'nullable|email|max:255',
+            'borrower_phone'        => 'nullable|string|max:30',
+            'borrower_identification' => 'nullable|string|max:50',
+            'borrower_category'     => 'required|in:pegawai,tamu,anak-magang',
+            'borrower_department'   => 'nullable|string|max:255',
+            'borrow_date'           => 'required|date',
+            'start_time'            => 'required|date_format:H:i',
+            'end_time'              => 'required|date_format:H:i|after:start_time',
+            'return_date'           => 'nullable|date|after_or_equal:borrow_date',
+            'actual_return_date'    => 'nullable|date',
+            'purpose'               => 'required|string|max:500',
+            'notes'                 => 'nullable|string|max:500',
         ]);
 
         $borrowing->update($validated);
 
-        return redirect()->route('borrowings.index')->with('success', 'Peminjaman berhasil diperbarui.');
+        return redirect()
+            ->route('Borrowings.Index')
+            ->with('success', 'Peminjaman berhasil diperbarui.');
     }
 
     /**
-     * Hapus data peminjaman.
+     * Hapus peminjaman.
      */
     public function destroy($id): RedirectResponse
     {
         $borrowing = Borrowing::findOrFail($id);
         $borrowing->delete();
 
-        return redirect()->route('borrowings.index')->with('success', 'Peminjaman berhasil dihapus.');
+        return redirect()
+            ->route('Borrowings.Index')
+            ->with('success', 'Peminjaman berhasil dihapus.');
     }
 }

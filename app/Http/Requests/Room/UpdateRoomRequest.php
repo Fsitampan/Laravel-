@@ -8,22 +8,21 @@ use Illuminate\Validation\Rule;
 
 class UpdateRoomRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return $this->user()->canManageRooms();
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     */
     public function rules(): array
     {
         return [
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:rooms,code,' . $this->room->id,
+            'code' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('rooms', 'code')->ignore($this->room->id ?? null),
+            ],
             'description' => 'nullable|string|max:1000',
             'capacity' => 'required|integer|min:1|max:1000',
             'status' => ['required', Rule::enum(RoomStatus::class)],
@@ -31,13 +30,11 @@ class UpdateRoomRequest extends FormRequest
             'facilities' => 'nullable|array',
             'facilities.*' => 'string|max:100',
             'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-            'notes' => 'nullable|string|max:1000',
+            'full_name' => 'nullable|string|max:255',
+            'is_active' => 'required|boolean',
         ];
     }
 
-    /**
-     * Get custom messages for validator errors.
-     */
     public function messages(): array
     {
         return [

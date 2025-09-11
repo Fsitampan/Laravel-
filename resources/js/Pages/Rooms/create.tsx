@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -18,37 +18,65 @@ import {
     Camera, 
     AlertCircle,
     Save,
-    ArrowLeft
+    ArrowLeft,
+    X,
+    Upload,
+    Image,
+    CheckCircle,
+    Wrench
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { PageProps, CreateRoomData } from '@/types';
+import type { PageProps } from '@/types';
 import { Link } from '@inertiajs/react';
+
+// Mock data for room images - in production this would be from a database
+const getRoomImage = (roomName: string): string => {
+    const imageMap: { [key: string]: string } = {
+        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIBcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIBcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHxkaXNjdXNzaW9uJTIBcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHxhdWRpdG9yaXVtJTIBc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHxl4GVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
+    };
+    
+    const roomCode = roomName.toUpperCase();
+    return imageMap[roomCode] || imageMap['A']; // Default fallback
+};
 
 export default function CreateRoom({ auth }: PageProps) {
     const [facilitiesList, setFacilitiesList] = useState<string[]>(['']);
     const [imagePreview, setImagePreview] = useState<string>('');
+    const [imageError, setImageError] = useState<boolean>(false);
+    const [useLocalImage, setUseLocalImage] = useState<boolean>(false);
 
-    const { data, setData, post, processing, errors, reset } = useForm<CreateRoomData>({
+    const { data, setData, put, post, patch, processing, errors, reset } = useForm<Record<string, any>>({
         name: '',
+        code: '',
         full_name: '',
         description: '',
         capacity: 1,
+        status: 'tersedia',
         facilities: [],
         location: '',
+        image: null,
         image_url: '',
-        hourly_rate: 0,
+        notes: '',
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
+        // Pass the `data` object directly to Inertia's post method.
+        // Inertia will automatically handle converting File objects to FormData.
         post('/Rooms', {
-            onSuccess: () => {
-                router.visit('/Rooms');
-            },
-            onError: (errors) => {
-                console.error('Form errors:', errors);
-            }
+        ...data, // Menggabungkan semua properti dari objek data
+        onSuccess: () => {
+            router.visit('/Rooms');
+        },
+        onError: (errors: Record<string, string>) => {
+            console.error('Form errors:', errors);
+        }
         });
     };
 
@@ -57,7 +85,7 @@ export default function CreateRoom({ auth }: PageProps) {
     };
 
     const removeFacility = (index: number) => {
-        const newList = facilitiesList.filter((_, i) => i !== index);
+        const newList = facilitiesList.filter((_: string, i: number) => i !== index);
         setFacilitiesList(newList);
         setData('facilities', newList.filter(item => item.trim() !== ''));
     };
@@ -71,7 +99,60 @@ export default function CreateRoom({ auth }: PageProps) {
 
     const handleImageUrlChange = (url: string) => {
         setData('image_url', url);
-        setImagePreview(url);
+        setImageError(false);
+        
+        if (url.trim()) {
+            // Test if URL is valid by creating a new image
+            // @ts-ignore
+            const img = new Image();
+            img.onload = () => {
+                setImagePreview(url);
+                setImageError(false);
+            };
+            img.onerror = () => {
+                setImagePreview('');
+                setImageError(true);
+            };
+            img.src = url;
+        } else {
+            setImagePreview('');
+            setImageError(false);
+        }
+    };
+
+    const clearImagePreview = () => {
+        setImagePreview('');
+        setImageError(false);
+        setData('image_url', '');
+        setData('image', null);
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                setImageError(true);
+                return;
+            }
+            
+            // Validate file size (2MB max)
+            if (file.size > 2 * 1024 * 1024) {
+                setImageError(true);
+                return;
+            }
+
+            setData('image', file);
+            setData('image_url', ''); // Clear URL if using local image
+            setImageError(false);
+            
+            // Create preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setImagePreview(e.target?.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const commonFacilities = [
@@ -85,21 +166,23 @@ export default function CreateRoom({ auth }: PageProps) {
 
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href="/Rooms">
-                                <ArrowLeft className="h-4 w-4 mr-2" />
-                                Kembali
-                            </Link>
-                        </Button>
-                        <div>
-                            <h1 className="text-3xl font-semibold text-gray-900">
-                                Tambah Ruangan Baru
-                            </h1>
-                            <p className="mt-2 text-gray-600">
-                                Isi formulir di bawah untuk menambahkan ruangan baru
-                            </p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-4">
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href="/Rooms">
+                                    <ArrowLeft className="h-4 w-4 mr-2" />
+                                    Kembali
+                                </Link>
+                            </Button>
+                            <div>
+                                <h1 className="text-3xl font-semibold tracking-tight">
+                                    Tambah Ruangan Baru
+                                </h1>
+                                <p className="text-muted-foreground">
+                                    Isi formulir di bawah untuk menambahkan ruangan baru
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -108,13 +191,67 @@ export default function CreateRoom({ auth }: PageProps) {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Main Form */}
                         <div className="lg:col-span-2 space-y-6">
-                            {/* Basic Information */}
-                            <Card>
+                            {/* Preview Image */}
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <Building2 className="h-5 w-5 mr-2" />
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Camera className="h-5 w-5" />
+                                        Preview Ruangan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Preview gambar ruangan berdasarkan nama yang dipilih
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="relative h-48 rounded-lg overflow-hidden bg-muted">
+                                        {data.name ? (
+                                            <>
+                                                <img
+                                                    src={getRoomImage(data.name)}
+                                                    alt={`Preview Ruang ${data.name}`}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                                                <div className="absolute bottom-4 left-4">
+                                                    <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2">
+                                                        <span className="text-white font-semibold text-lg">Ruang {data.name}</span>
+                                                        <p className="text-white/80 text-sm">{data.capacity} orang</p>
+                                                    </div>
+                                                </div>
+                                                {data.status && (
+                                                    <div className="absolute top-4 right-4">
+                                                        <Badge variant="outline" className="backdrop-blur-sm bg-white/90">
+                                                            {data.status === 'tersedia' && <CheckCircle className="h-4 w-4 mr-1" />}
+                                                            {data.status === 'dipakai' && <Users className="h-4 w-4 mr-1" />}
+                                                            {data.status === 'pemeliharaan' && <Wrench className="h-4 w-4 mr-1" />}
+                                                            {data.status === 'tersedia' ? 'Tersedia' : 
+                                                             data.status === 'dipakai' ? 'Dipakai' : 'Pemeliharaan'}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="flex items-center justify-center h-full">
+                                                <div className="text-center">
+                                                    <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                                                    <p className="text-muted-foreground">Masukkan nama ruangan untuk melihat preview</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Basic Information */}
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Building2 className="h-5 w-5" />
                                         Informasi Dasar
                                     </CardTitle>
+                                    <CardDescription>
+                                        Informasi dasar ruangan yang akan ditambahkan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -134,6 +271,23 @@ export default function CreateRoom({ auth }: PageProps) {
                                         </div>
 
                                         <div>
+                                            <Label htmlFor="code">Kode Ruangan *</Label>
+                                            <Input
+                                                id="code"
+                                                type="text"
+                                                value={data.code}
+                                                onChange={(e) => setData('code', e.target.value)}
+                                                className={cn(errors.code && "border-red-500")}
+                                                placeholder="R001, AULA-01, dll"
+                                            />
+                                            {errors.code && (
+                                                <p className="text-sm text-red-600 mt-1">{errors.code}</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
                                             <Label htmlFor="capacity">Kapasitas (Orang) *</Label>
                                             <Input
                                                 id="capacity"
@@ -146,6 +300,23 @@ export default function CreateRoom({ auth }: PageProps) {
                                             />
                                             {errors.capacity && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.capacity}</p>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <Label htmlFor="status">Status Ruangan *</Label>
+                                            <Select value={data.status} onValueChange={(value: 'tersedia' | 'dipakai' | 'pemeliharaan') => setData('status', value)}>
+                                                <SelectTrigger className={cn(errors.status && "border-red-500")}>
+                                                    <SelectValue placeholder="Pilih status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="tersedia">Tersedia</SelectItem>
+                                                    <SelectItem value="dipakai">Dipakai</SelectItem>
+                                                    <SelectItem value="pemeliharaan">Pemeliharaan</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            {errors.status && (
+                                                <p className="text-sm text-red-600 mt-1">{errors.status}</p>
                                             )}
                                         </div>
                                     </div>
@@ -183,46 +354,49 @@ export default function CreateRoom({ auth }: PageProps) {
                                         />
                                     </div>
 
-                                    <div>
-                                        <Label htmlFor="hourly_rate">Tarif per Jam (Opsional)</Label>
-                                        <Input
-                                            id="hourly_rate"
-                                            type="number"
-                                            min="0"
-                                            value={data.hourly_rate}
-                                            onChange={(e) => setData('hourly_rate', parseInt(e.target.value) || 0)}
-                                            placeholder="0"
-                                        />
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            Kosongkan jika gratis
-                                        </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                                        <div>
+                                            <Label htmlFor="notes">Catatan</Label>
+                                            <Textarea
+                                                id="notes"
+                                                value={data.notes}
+                                                onChange={(e) => setData('notes', e.target.value)}
+                                                placeholder="Catatan tambahan tentang ruangan"
+                                                rows={2}
+                                            />
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
 
                             {/* Facilities */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle>Fasilitas Ruangan</CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Users className="h-5 w-5" />
+                                        Fasilitas Ruangan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Pilih fasilitas yang tersedia di ruangan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div>
                                         <Label className="text-sm font-medium">Fasilitas Umum</Label>
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                                            {commonFacilities.map((facility) => (
+                                            {commonFacilities.map((facility: string) => (
                                                 <div key={facility} className="flex items-center space-x-2">
                                                     <Checkbox
                                                         id={`facility-${facility}`}
-                                                        checked={facilitiesList.includes(facility)}
+                                                        checked={Array.isArray(data.facilities) && data.facilities.includes(facility)}
                                                         onCheckedChange={(checked) => {
                                                             if (checked) {
-                                                                const newList = [...facilitiesList, facility];
-                                                                setFacilitiesList(newList);
-                                                                setData('facilities', newList.filter(item => item.trim() !== ''));
+                                                                const newList = [...(Array.isArray(data.facilities) ? data.facilities : []), facility];
+                                                                setData('facilities', newList);
                                                             } else {
-                                                                const newList = facilitiesList.filter(f => f !== facility);
-                                                                setFacilitiesList(newList);
-                                                                setData('facilities', newList.filter(item => item.trim() !== ''));
+                                                                const newList = (Array.isArray(data.facilities) ? data.facilities : []).filter((f: string) => f !== facility);
+                                                                setData('facilities', newList);
                                                             }
                                                         }}
                                                     />
@@ -237,7 +411,7 @@ export default function CreateRoom({ auth }: PageProps) {
                                     <div>
                                         <Label>Fasilitas Tambahan</Label>
                                         <div className="space-y-2 mt-2">
-                                            {facilitiesList.filter(f => !commonFacilities.includes(f)).map((facility, index) => (
+                                            {facilitiesList.filter((f: string) => !commonFacilities.includes(f)).map((facility: string, index: number) => (
                                                 <div key={index} className="flex items-center space-x-2">
                                                     <Input
                                                         type="text"
@@ -271,37 +445,112 @@ export default function CreateRoom({ auth }: PageProps) {
                             </Card>
 
                             {/* Image */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <Camera className="h-5 w-5 mr-2" />
-                                        Gambar Ruangan
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Upload className="h-5 w-5" />
+                                        Upload Gambar Ruangan
                                     </CardTitle>
+                                    <CardDescription>
+                                        Upload gambar ruangan atau gunakan URL gambar
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="image_url">URL Gambar</Label>
-                                        <Input
-                                            id="image_url"
-                                            type="url"
-                                            value={data.image_url}
-                                            onChange={(e) => handleImageUrlChange(e.target.value)}
-                                            placeholder="https://example.com/image.jpg"
-                                        />
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            Masukkan URL gambar ruangan
-                                        </p>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center space-x-4">
+                                            <Button
+                                                type="button"
+                                                variant={useLocalImage ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => {
+                                                    setUseLocalImage(true);
+                                                    setData('image_url', '');
+                                                    clearImagePreview();
+                                                }}
+                                            >
+                                                <Upload className="h-4 w-4 mr-2" />
+                                                Upload File
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={!useLocalImage ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => {
+                                                    setUseLocalImage(false);
+                                                    setData('image', null);
+                                                    clearImagePreview();
+                                                }}
+                                            >
+                                                <Image className="h-4 w-4 mr-2" />
+                                                URL Gambar
+                                            </Button>
+                                        </div>
+
+                                        {useLocalImage ? (
+                                            <div>
+                                                <Label htmlFor="image">Upload Gambar</Label>
+                                                <Input
+                                                    id="image"
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/jpg"
+                                                    onChange={handleImageUpload}
+                                                    className={cn(errors.image && "border-red-500")}
+                                                />
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    Format: JPEG, PNG, JPG. Maksimal 2MB
+                                                </p>
+                                                {errors.image && (
+                                                    <p className="text-sm text-red-600 mt-1">{errors.image}</p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <Label htmlFor="image_url">URL Gambar</Label>
+                                                <Input
+                                                    id="image_url"
+                                                    type="url"
+                                                    value={data.image_url}
+                                                    onChange={(e) => handleImageUrlChange(e.target.value)}
+                                                    placeholder="https://example.com/image.jpg"
+                                                />
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    Masukkan URL gambar ruangan
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {imageError && (
+                                            <p className="text-sm text-red-600 mt-1">
+                                                {useLocalImage 
+                                                    ? 'File harus berupa gambar dengan format JPEG, PNG, atau JPG dan maksimal 2MB'
+                                                    : 'URL gambar tidak valid atau tidak dapat dimuat'
+                                                }
+                                            </p>
+                                        )}
                                     </div>
 
-                                    {imagePreview && (
+                                    {imagePreview && !imageError && (
                                         <div className="mt-4">
-                                            <Label>Preview Gambar</Label>
-                                            <div className="mt-2 border rounded-lg overflow-hidden">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label>Preview Gambar</Label>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={clearImagePreview}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                            <div className="border rounded-lg overflow-hidden bg-gray-50">
                                                 <img
                                                     src={imagePreview}
                                                     alt="Preview ruangan"
                                                     className="w-full h-48 object-cover"
-                                                    onError={() => setImagePreview('')}
+                                                    onError={() => {
+                                                        setImageError(true);
+                                                        setImagePreview('');
+                                                    }}
                                                 />
                                             </div>
                                         </div>
@@ -313,9 +562,15 @@ export default function CreateRoom({ auth }: PageProps) {
                         {/* Sidebar */}
                         <div className="space-y-6">
                             {/* Summary */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle>Ringkasan Ruangan</CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <AlertCircle className="h-5 w-5" />
+                                        Ringkasan Ruangan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Ringkasan data ruangan yang akan disimpan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
@@ -324,8 +579,20 @@ export default function CreateRoom({ auth }: PageProps) {
                                             <span className="font-medium">{data.name || 'Belum diisi'}</span>
                                         </div>
                                         <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Kode:</span>
+                                            <span className="font-medium">{data.code || 'Belum diisi'}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
                                             <span className="text-gray-600">Kapasitas:</span>
                                             <span className="font-medium">{data.capacity} orang</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Status:</span>
+                                            <span className="font-medium">
+                                                {data.status === 'tersedia' ? 'Tersedia' : 
+                                                 data.status === 'dipakai' ? 'Dipakai' : 
+                                                 data.status === 'pemeliharaan' ? 'Pemeliharaan' : 'Belum dipilih'}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-600">Lokasi:</span>
@@ -333,21 +600,15 @@ export default function CreateRoom({ auth }: PageProps) {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-gray-600">Fasilitas:</span>
-                                            <span className="font-medium">{data.facilities?.length || 0} item</span>
+                                            <span className="font-medium">{(data.facilities as string[] | undefined)?.length || 0} item</span>
                                         </div>
-                                        {data.hourly_rate && data.hourly_rate > 0 && (
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-gray-600">Tarif/Jam:</span>
-                                                <span className="font-medium">Rp {data.hourly_rate.toLocaleString('id-ID')}</span>
-                                            </div>
-                                        )}
                                     </div>
 
-                                    {data.facilities && data.facilities.length > 0 && (
+                                    {data.facilities && (data.facilities as string[]).length > 0 && (
                                         <div>
                                             <Label className="text-sm font-medium">Fasilitas Terpilih:</Label>
                                             <div className="flex flex-wrap gap-1 mt-2">
-                                                {data.facilities.map((facility, index) => (
+                                                {(data.facilities as string[]).map((facility, index) => (
                                                     <Badge key={index} variant="secondary" className="text-xs">
                                                         {facility}
                                                     </Badge>
@@ -359,12 +620,15 @@ export default function CreateRoom({ auth }: PageProps) {
                             </Card>
 
                             {/* Guidelines */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <AlertCircle className="h-5 w-5 mr-2" />
-                                        Panduan
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Building2 className="h-5 w-5" />
+                                        Panduan Pengisian
                                     </CardTitle>
+                                    <CardDescription>
+                                        Tips untuk mengisi formulir dengan benar
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-3 text-sm text-gray-600">
@@ -389,12 +653,12 @@ export default function CreateRoom({ auth }: PageProps) {
                             </Card>
 
                             {/* Submit Button */}
-                            <Card>
-                                <CardContent className="p-4">
+                            <Card className="border-0 shadow-sm">
+                                <CardContent className="p-6">
                                     <Button 
                                         type="submit" 
                                         className="w-full"
-                                        disabled={processing || !data.name || !data.capacity}
+                                        disabled={processing || !data.name || !data.code || !data.capacity || !data.status}
                                     >
                                         <Save className="h-4 w-4 mr-2" />
                                         {processing ? 'Menyimpan...' : 'Simpan Ruangan'}

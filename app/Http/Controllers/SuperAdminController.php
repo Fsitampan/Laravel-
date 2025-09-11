@@ -47,7 +47,7 @@ class SuperAdminController extends Controller
             'active_borrowings' => Borrowing::where('status', 'active')->count(),
             'pending_approvals' => Borrowing::where('status', 'pending')->count(),
             'completed_today' => Borrowing::where('status', 'completed')
-                ->whereDate('returned_at', today())->count(),
+                ->whereDate('actual_return_date', today())->count(),
             'monthly_borrowings' => Borrowing::whereMonth('created_at', now()->month)->count(),
             
             // System statistics

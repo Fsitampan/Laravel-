@@ -16,7 +16,7 @@ class Room extends Model
 
     protected $fillable = [
         'name', 'code', 'description', 'capacity', 'status', 
-        'location', 'facilities', 'notes', 'created_by', 'updated_by'
+        'location', 'facilities', 'notes', 'created_by', 'updated_by', 'image'
     ];
 
     protected function casts(): array
@@ -139,6 +139,15 @@ class Room extends Model
         return $query->where('status', RoomStatus::PEMELIHARAAN);
     }
 
+  public function getImageUrlAttribute()
+{
+    return $this->image 
+        ? asset('storage/Rooms/' . $this->image)
+        : asset('images/default-room.jpg'); // fallback kalau kosong
+}
+
+
+
     // For Inertia.js sharing
     public function toInertiaArray(): array
     {
@@ -161,6 +170,8 @@ class Room extends Model
             'has_active_borrowing' => $this->hasActiveBorrowing(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'image' => $this->image,
+            'image_url' => $this->image_url,
         ];
     }
 }

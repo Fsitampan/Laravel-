@@ -133,7 +133,7 @@ class RoomController extends Controller
                     'status' => $room->status,
                     'location' => $room->location,
                     'notes' => $room->notes,
-                    'image_url' => $room->image_url,
+                    'image' => $room->image, 
                     
                     // ✅ Pastikan facilities selalu array
                     'facilities' => $room->facilities
@@ -160,25 +160,39 @@ class RoomController extends Controller
             'room' => [
                 'id' => $room->id,
                 'name' => $room->name,
+                'code' => $room->code,
                 'full_name' => $room->full_name,
                 'capacity' => $room->capacity,
                 'location' => $room->location,
                 'description' => $room->description,
                 'status' => $room->status,
-                'facilities' => $room->facilities,
+                'image' => $room->image, 
+
+                // ✅ pastikan facilities selalu array
+                'facilities' => $room->facilities
+                    ? (is_array($room->facilities)
+                        ? $room->facilities
+                        : json_decode($room->facilities, true))
+                    : [],
             ]
         ]);
     }
-
     /**
      * Update the specified room in storage.
      */
     public function update(UpdateRoomRequest $request, Room $room)
-    {
-        $room->update($request->validated());
+{
+    $data = $request->validated();
 
-        return redirect()->route('Rooms.Show', $room)
-            ->with('success', 'Ruangan berhasil diperbarui.');
+    if ($request->hasFile('image')) {
+        $path = $request->file('image')->store('rooms', 'public'); 
+        $data['image'] = $path; // simpan "rooms/namafile.png"
+    }
+
+    $room->update($data);
+
+    return redirect()->route('Rooms.Show', $room)
+        ->with('success', 'Ruangan berhasil diperbarui.');
     }
 
     /**

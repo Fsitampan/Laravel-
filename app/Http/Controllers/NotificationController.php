@@ -159,7 +159,7 @@ class NotificationController extends Controller
                 'timestamp' => now()->subHours(2)->toISOString(),
                 'read' => false,
                 'priority' => 'info',
-                'action_url' => '/Users',
+                'action_url' => '/users',
             ];
         }
 

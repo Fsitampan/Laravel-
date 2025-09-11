@@ -287,7 +287,7 @@ export default function NotificationsIndex({ auth, notifications, unread_count }
                                                     )}
                                                     {notification.data?.borrowing_id && (
                                                         <DropdownMenuItem asChild>
-                                                            <Link href={`/borrowings/${notification.data.borrowing_id}`}>
+                                                            <Link href={`/Borrowings/${notification.data.borrowing_id}`}>
                                                                 <Eye className="h-4 w-4 mr-2" />
                                                                 Lihat Detail
                                                             </Link>

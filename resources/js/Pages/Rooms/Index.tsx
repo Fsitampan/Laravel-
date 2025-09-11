@@ -1,13 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+    Building2,
+    Plus,
+    Search,
+    Filter,
+    Users,
+    MapPin,
+    Settings,
+    Eye,
+    Edit,
+    Calendar,
+    AlertCircle,
+    CheckCircle,
+    Wrench,
+    Grid3X3,
+    List,
+    MoreHorizontal,
+    Trash2
+} from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -15,7 +33,13 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/dropdown-menu';import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -27,177 +51,244 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-    Building2,
-    Search,
-    Plus,
-    Filter,
-    Grid3X3,
-    List,
-    Eye,
-    Edit,
-    Trash2,
-    Users,
-    MapPin,
-    Calendar,
-    Clock,
-    Settings,
-    MoreVertical,
-    CheckCircle,
-    AlertCircle,
-    Wrench,
-    ChevronDown,
-    Download,
-    Upload,
-    RefreshCw,
-    ChevronLeft,
-    ChevronRight
-} from 'lucide-react';
-import { cn, formatDateTime, getStatusColor, getStatusLabel, getUserInitials } from '@/lib/utils';
+import { cn, getStatusColor, getStatusLabel, debounce } from '@/lib/utils';
 import type { PageProps, Room, PaginatedResponse, RoomFilters } from '@/types';
 
 interface RoomsPageProps extends PageProps {
     rooms: PaginatedResponse<Room>;
     filters: RoomFilters;
-    stats: {
-        total: number;
-        available: number;
-        occupied: number;
-        maintenance: number;
-    };
 }
 
-export default function RoomsIndex({
-    auth,
-    rooms,
-    filters = {},
-    stats = { total: 0, available: 0, occupied: 0, maintenance: 0 }
-}: RoomsPageProps) {
+// Mock data untuk gambar ruangan - dalam production akan dari database
+// Ambil gambar dari database, fallback ke Unsplash
+    const getRoomImage = (room: Room): string => {
+    return room.image_url || "https://source.unsplash.com/800x600/?meeting,room";
+    };
+
+
+export default function RoomsIndex({ auth, rooms, filters }: RoomsPageProps) {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-    const [searchQuery, setSearchQuery] = useState(filters?.search || '');
-    const [selectedStatus, setSelectedStatus] = useState<string>(filters?.status || 'all');
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const [selectedRooms, setSelectedRooms] = useState<number[]>([]);
+    const [searchTerm, setSearchTerm] = useState(filters?.search || '');
+    const [statusFilter, setStatusFilter] = useState(filters?.status || 'all');
+    const [showFilters, setShowFilters] = useState(false);
+    const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+    const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
     const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
 
-    const handleSearch = (query: string) => {
-        router.get('/Rooms', {
-            ...filters,
-            search: query || undefined,
-        }, {
+    const handleSearch = debounce((value: string) => {
+        router.get('/Rooms', { 
+            ...filters, 
+            search: value,
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
-    };
+    }, 300);
 
-    const handleStatusFilter = (status: string) => {
-        router.get('/Rooms', {
-            ...filters,
+    const handleStatusFilter = (status: "available" | "occupied" | "maintenance" | "all") => {
+        setStatusFilter(status);
+        router.get('/Rooms', { 
+            ...filters, 
             status: status === 'all' ? undefined : status,
-        }, {
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
-    };
-
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        router.reload({
-            only: ['rooms', 'stats'],
-            onFinish: () => {
-                setTimeout(() => setIsRefreshing(false), 1000);
-            }
-        });
-    };
-
-    const handleDeleteRoom = async (roomId: number) => {
-        try {
-            await router.delete(`/Rooms/${roomId}`, {
-                onSuccess: () => {
-                    setSelectedRooms(prev => prev.filter(id => id !== roomId));
-                }
-            });
-        } catch (error) {
-            console.error('Failed to delete room:', error);
-        }
-    };
-
-    const handleBulkStatusChange = async (status: string) => {
-        if (selectedRooms.length === 0) return;
-
-        try {
-            await router.patch('/Rooms/bulk-update', {
-                room_ids: selectedRooms,
-                status,
-            }, {
-                onSuccess: () => {
-                    setSelectedRooms([]);
-                }
-            });
-        } catch (error) {
-            console.error('Failed to update rooms:', error);
-        }
-    };
-
-    const toggleRoomSelection = (roomId: number) => {
-        setSelectedRooms(prev => 
-            prev.includes(roomId) 
-                ? prev.filter(id => id !== roomId)
-                : [...prev, roomId]
-        );
-    };
-
-    const toggleAllRoomsSelection = () => {
-        if (selectedRooms.length === (rooms.data?.length || 0)) {
-            setSelectedRooms([]);
-        } else {
-            setSelectedRooms(rooms.data?.map(room => room.id) || []);
-        }
     };
 
     const handlePageChange = (page: number) => {
-        router.get('/Rooms', {
-            ...filters,
-            page
-        }, {
+        router.get('/Rooms', { 
+            ...filters, 
+            page 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
-    };
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (searchQuery !== filters.search) {
-                handleSearch(searchQuery);
-            }
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
-
-    useEffect(() => {
-        setSelectedStatus(filters.status || 'all');
-    }, [filters.status]);
-
-    const statusCounts = {
-        all: stats.total,
-        available: stats.available,
-        occupied: stats.occupied,
-        maintenance: stats.maintenance,
     };
 
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'available':
-                return CheckCircle;
+                return <CheckCircle className="h-4 w-4" />;
             case 'occupied':
-                return Users;
+                return <Users className="h-4 w-4" />;
             case 'maintenance':
-                return Wrench;
+                return <Wrench className="h-4 w-4" />;
             default:
-                return Building2;
+                return <AlertCircle className="h-4 w-4" />;
         }
+    };
+
+    const openDetailDialog = (room: Room) => {
+        setSelectedRoom(room);
+        setIsDetailDialogOpen(true);
+    };
+
+    const RoomDetailDialog = ({ isOpen, onOpenChange, room }: {
+        isOpen: boolean;
+        onOpenChange: (open: boolean) => void;
+        room: Room | null;
+    }) => {
+        if (!room) return null;
+        
+        const StatusIcon = getStatusIcon(room.status);
+        const roomImage = getRoomImage(room);
+
+        
+        return (
+            <Dialog open={isOpen} onOpenChange={onOpenChange}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl">Ruang {room.name}</DialogTitle>
+                        <DialogDescription>
+                            Detail lengkap ruangan dan fasilitasnya
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-6">
+                        {/* Room Image */}
+                        <div className="relative h-64 rounded-lg overflow-hidden">
+                           <img
+                            src={roomImage}
+                            alt={`Preview Ruang ${room.name}`}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                            <div className="absolute top-4 right-4">
+                                <Badge variant="outline" className={cn("backdrop-blur-sm bg-white/90", getStatusColor(room.status))}>
+                                    {StatusIcon}
+                                    <span className="ml-2">{getStatusLabel(room.status, 'room')}</span>
+                                </Badge>
+                            </div>
+                            <div className="absolute bottom-4 left-4">
+                                <div className="bg-black/60 backdrop-blur-sm rounded-lg px-4 py-2">
+                                    <h3 className="text-white text-xl font-semibold">Ruang {room.name}</h3>
+                                    <p className="text-white/80 text-sm">{room.location}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Room Information Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Building2 className="h-5 w-5" />
+                                        Informasi Ruangan
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-sm font-medium text-muted-foreground">Kode Ruangan</span>
+                                            <p className="text-lg font-semibold">#{room.id}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm font-medium text-muted-foreground">Kapasitas</span>
+                                            <p className="text-lg font-semibold">{room.capacity} orang</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-muted-foreground">Lokasi</span>
+                                        <p className="flex items-center gap-2 mt-1">
+                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                            {room.location || 'Lokasi tidak tersedia'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-muted-foreground">Status</span>
+                                        <div className="mt-1">
+                                            <Badge variant="outline" className={cn("", getStatusColor(room.status))}>
+                                                {StatusIcon}
+                                                <span className="ml-2">{getStatusLabel(room.status, 'room')}</span>
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    {room.full_name && (
+                                        <div>
+                                            <span className="text-sm font-medium text-muted-foreground">Nama Lengkap</span>
+                                            <p className="mt-1 text-sm leading-relaxed">{room.full_name}</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Settings className="h-5 w-5" />
+                                        Status & Aktivitas
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {room.current_borrowing ? (
+                                        <div className="space-y-4">
+                                            <div className="p-4 rounded-lg bg-orange-50 border border-orange-200">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Users className="h-4 w-4 text-orange-600" />
+                                                    <span className="font-medium text-orange-800">Sedang Dipinjam</span>
+                                                </div>
+                                                <p className="text-sm text-orange-700">
+                                                    <strong>Peminjam:</strong> {room.current_borrowing.borrower_name}
+                                                </p>
+                                                {room.current_borrowing.purpose && (
+                                                    <p className="text-sm text-orange-700">
+                                                        <strong>Keperluan:</strong> {room.current_borrowing.purpose}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6">
+                                            <CheckCircle className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
+                                            <p className="font-medium text-emerald-800">Ruangan Tersedia</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Siap untuk dipinjam
+                                            </p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-between pt-4 border-t">
+                            <div className="text-sm text-muted-foreground">
+                                Ruangan #{room.id} • {room.capacity} orang
+                            </div>
+                            <div className="flex gap-2">
+                                {isAdmin && (
+                                    <Button variant="outline" asChild>
+                                        <Link href={`/Rooms/${room.id}/edit`}>
+                                            <Edit className="h-4 w-4 mr-2" />
+                                            Edit Ruangan
+                                        </Link>
+                                    </Button>
+                                )}
+                                {room.status === 'tersedia' && (
+                                    <Button asChild>
+                                        <Link href={`/Borrowings/Create?room=${room.id}`}>
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Buat Peminjaman
+                                        </Link>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        );
+    };
+
+    const statusCounts = {
+        total: rooms.total,
+        available: rooms.data.filter(r => r.status === 'tersedia').length,
+        occupied: rooms.data.filter(r => r.status === 'dipakai').length,
+        maintenance: rooms.data.filter(r => r.status === 'pemeliharaan').length,
     };
 
     return (
@@ -205,103 +296,95 @@ export default function RoomsIndex({
             <Head title="Manajemen Ruangan" />
 
             <div className="space-y-6">
-                {/* Header Section */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 className="text-3xl font-semibold text-gray-900">
+                {/* Header */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                        <h1 className="text-3xl font-semibold tracking-tight">
                             Manajemen Ruangan
                         </h1>
-                        <p className="mt-2 text-gray-600">
-                            Kelola ruangan dan fasilitas BPS Riau
+                        <p className="text-muted-foreground">
+                            Kelola data ruangan dan fasilitasnya
                         </p>
                     </div>
-                    <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleRefresh}
-                            disabled={isRefreshing}
-                        >
-                            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                            Refresh
-                        </Button>
+                    
+                    <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setViewMode('grid')}
+                            >
+                                <Grid3X3 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant={viewMode === 'list' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setViewMode('list')}
+                            >
+                                <List className="h-4 w-4" />
+                            </Button>
+                        </div>
                         {isAdmin && (
-                            <>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm">
-                                            <Download className="h-4 w-4 mr-2" />
-                                            Export
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <DropdownMenuItem asChild>
-                                            <Link href="/Rooms/export?format=excel">
-                                                Export ke Excel
-                                            </Link>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem asChild>
-                                            <Link href="/Rooms/export?format=pdf">
-                                                Export ke PDF
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <Button asChild>
-                                    <Link href="/Rooms/create">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Tambah Ruangan
-                                    </Link>
-                                </Button>
-                            </>
+                            <Button asChild>
+                                <Link href="/Rooms/create">
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Tambah Ruangan
+                                </Link>
+                            </Button>
                         )}
                     </div>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                {/* Stats */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Card className="border-0 shadow-sm">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-blue-700">Total Ruangan</p>
-                                    <p className="text-3xl font-bold text-blue-900">{stats.total}</p>
+                                    <p className="text-sm font-medium text-muted-foreground">Total Ruangan</p>
+                                    <p className="text-2xl font-bold">{statusCounts.total}</p>
                                 </div>
                                 <Building2 className="h-8 w-8 text-blue-600" />
                             </div>
                         </CardContent>
                     </Card>
-
-                    <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+                    
+                    <Card className="border-0 shadow-sm">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-emerald-700">Tersedia</p>
-                                    <p className="text-3xl font-bold text-emerald-900">{stats.available}</p>
+                                    <p className="text-sm font-medium text-muted-foreground">Tersedia</p>
+                                    <p className="text-2xl font-bold text-emerald-600">
+                                        {statusCounts.available}
+                                    </p>
                                 </div>
                                 <CheckCircle className="h-8 w-8 text-emerald-600" />
                             </div>
                         </CardContent>
                     </Card>
-
-                    <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+                    
+                    <Card className="border-0 shadow-sm">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-orange-700">Terpakai</p>
-                                    <p className="text-3xl font-bold text-orange-900">{stats.occupied}</p>
+                                    <p className="text-sm font-medium text-muted-foreground">Sedang Digunakan</p>
+                                    <p className="text-2xl font-bold text-orange-600">
+                                        {statusCounts.occupied}
+                                    </p>
                                 </div>
                                 <Users className="h-8 w-8 text-orange-600" />
                             </div>
                         </CardContent>
                     </Card>
-
-                    <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+                    
+                    <Card className="border-0 shadow-sm">
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-red-700">Maintenance</p>
-                                    <p className="text-3xl font-bold text-red-900">{stats.maintenance}</p>
+                                    <p className="text-sm font-medium text-muted-foreground">Maintenance</p>
+                                    <p className="text-2xl font-bold text-red-600">
+                                        {statusCounts.maintenance}
+                                    </p>
                                 </div>
                                 <Wrench className="h-8 w-8 text-red-600" />
                             </div>
@@ -309,75 +392,38 @@ export default function RoomsIndex({
                     </Card>
                 </div>
 
-                {/* Filters and Actions */}
-                <Card>
+                {/* Filters */}
+                <Card className="border-0 shadow-sm">
                     <CardContent className="p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                            <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
-                                <div className="relative flex-1 max-w-md">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                            <div className="flex-1">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         placeholder="Cari ruangan..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        value={searchTerm}
+                                        onChange={(e) => {
+                                            setSearchTerm(e.target.value);
+                                            handleSearch(e.target.value);
+                                        }}
                                         className="pl-10"
                                     />
                                 </div>
-                                <Select value={selectedStatus} onValueChange={handleStatusFilter}>
-                                    <SelectTrigger className="w-full sm:w-48">
-                                        <SelectValue placeholder="Filter status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">
-                                            Semua Status ({statusCounts.all})
-                                        </SelectItem>
-                                        <SelectItem value="available">
-                                            Tersedia ({statusCounts.available})
-                                        </SelectItem>
-                                        <SelectItem value="occupied">
-                                            Terpakai ({statusCounts.occupied})
-                                        </SelectItem>
-                                        <SelectItem value="maintenance">
-                                            Maintenance ({statusCounts.maintenance})
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
                             </div>
-
-                            <div className="flex items-center space-x-2">
-                                {selectedRooms.length > 0 && isAdmin && (
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="outline" size="sm">
-                                                Aksi Massal ({selectedRooms.length})
-                                                <ChevronDown className="h-4 w-4 ml-2" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <DropdownMenuItem onClick={() => handleBulkStatusChange('available')}>
-                                                Tandai Tersedia
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleBulkStatusChange('maintenance')}>
-                                                Tandai Maintenance
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                )}
-                                <div className="flex items-center border rounded-lg p-1">
-                                    <Button
-                                        variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                                        size="sm"
-                                        onClick={() => setViewMode('grid')}
-                                    >
-                                        <Grid3X3 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant={viewMode === 'list' ? 'default' : 'ghost'}
-                                        size="sm"
-                                        onClick={() => setViewMode('list')}
-                                    >
-                                        <List className="h-4 w-4" />
-                                    </Button>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4 text-muted-foreground" />
+                                    <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                                        <SelectTrigger className="w-[150px]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Semua Status</SelectItem>
+                                            <SelectItem value="available">Tersedia</SelectItem>
+                                            <SelectItem value="occupied">Sedang Digunakan</SelectItem>
+                                            <SelectItem value="maintenance">Maintenance</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                         </div>
@@ -385,322 +431,257 @@ export default function RoomsIndex({
                 </Card>
 
                 {/* Rooms Grid/List */}
-                {(rooms.data?.length || 0) === 0 ? (
-                    <Card>
-                        <CardContent className="p-12 text-center">
-                            <Building2 className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                {searchQuery ? 'Tidak ada ruangan ditemukan' : 'Belum ada ruangan'}
-                            </h3>
-                            <p className="text-gray-600 mb-6">
-                                {searchQuery 
-                                    ? `Tidak ada ruangan yang cocok dengan pencarian "${searchQuery}"`
-                                    : 'Tambahkan ruangan pertama untuk memulai manajemen ruangan'
-                                }
-                            </p>
-                            {isAdmin && !searchQuery && (
-                                <Button asChild>
-                                    <Link href="/Rooms/create">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Tambah Ruangan
-                                    </Link>
-                                </Button>
-                            )}
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <>
-                        <div className={cn(
-                            viewMode === 'grid' 
-                                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                                : 'space-y-4'
-                        )}>
-                            {rooms.data?.map((room) => (
-                                <Card key={room.id} className="overflow-hidden smooth-hover">
-                                    {viewMode === 'grid' ? (
-                                        <CardContent className="p-6">
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex items-start space-x-3">
-                                                    {isAdmin && (
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedRooms.includes(room.id)}
-                                                            onChange={() => toggleRoomSelection(room.id)}
-                                                            className="mt-1 rounded border-gray-300"
-                                                        />
-                                                    )}
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold text-gray-900">
-                                                            Ruang {room.name}
-                                                        </h3>
-                                                        <p className="text-sm text-gray-600">
-                                                            {room.full_name || `Ruangan ${room.name}`}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <Badge 
-                                                        variant="outline" 
-                                                        className={cn("border", getStatusColor(room.status))}
-                                                    >
-                                                        {getStatusLabel(room.status, 'room')}
-                                                    </Badge>
-                                                    {isAdmin && (
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" size="sm">
-                                                                    <MoreVertical className="h-4 w-4" />
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/Rooms/${room.id}`}>
-                                                                        <Eye className="h-4 w-4 mr-2" />
-                                                                        Detail
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/Rooms/${room.id}/edit`}>
-                                                                        <Edit className="h-4 w-4 mr-2" />
-                                                                        Edit
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuSeparator />
-                                                                <AlertDialog>
-                                                                    <AlertDialogTrigger asChild>
-                                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                            <Trash2 className="h-4 w-4 mr-2" />
-                                                                            Hapus
-                                                                        </DropdownMenuItem>
-                                                                    </AlertDialogTrigger>
-                                                                    <AlertDialogContent>
-                                                                        <AlertDialogHeader>
-                                                                            <AlertDialogTitle>Hapus Ruangan</AlertDialogTitle>
-                                                                            <AlertDialogDescription>
-                                                                                Apakah Anda yakin ingin menghapus ruangan {room.name}? 
-                                                                                Tindakan ini tidak dapat dibatalkan.
-                                                                            </AlertDialogDescription>
-                                                                        </AlertDialogHeader>
-                                                                        <AlertDialogFooter>
-                                                                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                            <AlertDialogAction
-                                                                                onClick={() => handleDeleteRoom(room.id)}
-                                                                                className="bg-red-600 hover:bg-red-700"
-                                                                            >
-                                                                                Hapus
-                                                                            </AlertDialogAction>
-                                                                        </AlertDialogFooter>
-                                                                    </AlertDialogContent>
-                                                                </AlertDialog>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    )}
-                                                </div>
+                {viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {rooms.data.map((room) => {
+                            const StatusIcon = getStatusIcon(room.status);
+                            const roomImage = getRoomImage(room);
+                            
+                            return (
+                                <Card key={room.id} className="border-0 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
+                                    {/* Room Image */}
+                                    <div 
+                                        className="relative h-48 overflow-hidden cursor-pointer"
+                                        onClick={() => openDetailDialog(room)}
+                                    >
+                                        <img
+                                            src={roomImage}
+                                            alt={`Preview Ruang ${room.name}`}
+                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent group-hover:from-black/40 transition-all duration-300" />
+                                        
+                                        {/* Hover overlay */}
+                                        <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                            <div className="bg-white/90 backdrop-blur-sm rounded-full p-3 transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                                                <Eye className="h-6 w-6 text-primary" />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="absolute top-3 right-3">
+                                            <Badge variant="outline" className={cn("text-xs backdrop-blur-sm bg-white/90", getStatusColor(room.status))}>
+                                                {StatusIcon}
+                                                <span className="ml-1">{getStatusLabel(room.status, 'room')}</span>
+                                            </Badge>
+                                        </div>
+                                        <div className="absolute bottom-3 left-3">
+                                            <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 group-hover:bg-black/70 transition-all duration-300">
+                                                <span className="text-white font-semibold text-lg"> {room.name}</span>
+                                                <p className="text-white/80 text-sm">{room.capacity} orang</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <CardContent className="p-6">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                <MapPin className="h-4 w-4" />
+                                                {room.location || 'Lokasi tidak tersedia'}
                                             </div>
 
-                                            <div className="space-y-3 mb-4">
-                                                <div className="flex items-center text-sm text-gray-600">
-                                                    <Users className="h-4 w-4 mr-2" />
-                                                    Kapasitas: {room.capacity} orang
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <Users className="h-4 w-4 text-muted-foreground" />
+                                                    <span>Kapasitas: {room.capacity} orang</span>
                                                 </div>
-                                                <div className="flex items-center text-sm text-gray-600">
-                                                    <MapPin className="h-4 w-4 mr-2" />
-                                                    {room.location || 'Lokasi tidak tersedia'}
-                                                </div>
+                                                
+                                                {room.full_name && (
+                                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                                        {room.full_name}
+                                                    </p>
+                                                )}
                                             </div>
 
                                             {room.current_borrowing && (
-                                                <div className="p-3 bg-blue-50 rounded-lg mb-4">
-                                                    <p className="text-sm font-medium text-blue-900 mb-1">
-                                                        Sedang Digunakan
+                                                <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                                                    <p className="text-sm font-medium text-orange-800">
+                                                        Sedang Dipinjam
                                                     </p>
-                                                    <p className="text-sm text-blue-700">
+                                                    <p className="text-xs text-orange-600">
                                                         {room.current_borrowing.borrower_name}
-                                                    </p>
-                                                    <p className="text-xs text-blue-600">
-                                                        {formatDateTime(room.current_borrowing.borrowed_at)}
-                                                        {room.current_borrowing.planned_return_at && 
-                                                            ` - ${formatDateTime(room.current_borrowing.planned_return_at)}`
-                                                        }
                                                     </p>
                                                 </div>
                                             )}
 
-                                            <div className="flex space-x-2">
-                                                <Button asChild variant="outline" size="sm" className="flex-1">
-                                                    <Link href={`/rooms/${room.id}`}>
-                                                        <Eye className="h-4 w-4 mr-2" />
+                                            <div className="flex items-center justify-between pt-4 border-t">
+                                                <div className="flex gap-2">
+                                                    <Button variant="outline" size="sm" asChild>
+                                                         <Link href={`/Rooms/${room.id}`}>
+                                                        <Eye className="h-4 w-4 mr-1" />
                                                         Detail
-                                                    </Link>
-                                                </Button>
-                                                {room.status === 'occupied' && (
-                                                    <Button asChild size="sm" className="flex-1">
+                                                        </Link>
+                                                    </Button>
+                                                    {isAdmin && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/Rooms/${room.id}/edit`}>
+                                                                <Edit className="h-4 w-4 mr-1" />
+                                                                Edit
+                                                            </Link>
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                
+                                                {room.status === 'tersedia' && (
+                                                    <Button size="sm" asChild>
                                                         <Link href={`/Borrowings/Create?room=${room.id}`}>
-                                                            <Calendar className="h-4 w-4 mr-2" />
+                                                            <Calendar className="h-4 w-4 mr-1" />
                                                             Pinjam
                                                         </Link>
                                                     </Button>
                                                 )}
                                             </div>
-                                        </CardContent>
-                                    ) : (
-                                        <CardContent className="p-6">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-4">
-                                                    {isAdmin && (
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedRooms.includes(room.id)}
-                                                            onChange={() => toggleRoomSelection(room.id)}
-                                                            className="rounded border-gray-300"
-                                                        />
-                                                    )}
-                                                    <div className="flex items-center space-x-3">
-                                                        <Avatar className="h-12 w-12">
-                                                            <AvatarFallback className="bg-blue-100 text-blue-700">
-                                                                {room.name}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        <div>
-                                                            <h3 className="text-lg font-semibold text-gray-900">
-                                                                Ruang {room.name}
-                                                            </h3>
-                                                            <p className="text-sm text-gray-600">
-                                                                {room.full_name || `Ruangan ${room.name}`}
-                                                            </p>
-                                                            <div className="flex items-center space-x-4 mt-1">
-                                                                <span className="text-sm text-gray-500 flex items-center">
-                                                                    <Users className="h-4 w-4 mr-1" />
-                                                                    {room.capacity}
-                                                                </span>
-                                                                <span className="text-sm text-gray-500 flex items-center">
-                                                                    <MapPin className="h-4 w-4 mr-1" />
-                                                                    {room.location || 'N/A'}
-                                                                </span>
-                                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <Card>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 border-b">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Ruangan
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Kapasitas
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Lokasi
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {rooms.data.map((room) => (
+                                            <tr key={room.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900">
+                                                            Ruang {room.name}
                                                         </div>
+                                                        {room.full_name && (
+                                                            <div className="text-sm text-gray-500">
+                                                                {room.full_name}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                                <div className="flex items-center space-x-3">
-                                                    <Badge 
-                                                        variant="outline" 
-                                                        className={cn("border", getStatusColor(room.status))}
-                                                    >
-                                                        {getStatusLabel(room.status, 'room')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <Badge variant="outline" className={cn("text-xs", getStatusColor(room.status))}>
+                                                        <div className="flex items-center">
+                                                            {getStatusIcon(room.status)}
+                                                            <span className="ml-1">{getStatusLabel(room.status, 'room')}</span>
+                                                        </div>
                                                     </Badge>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {room.capacity} orang
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {room.location || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                     <div className="flex items-center space-x-2">
-                                                        <Button asChild variant="outline" size="sm">
-                                                            <Link href={`/rooms/${room.id}`}>
-                                                                <Eye className="h-4 w-4 mr-2" />
-                                                                Detail
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/Rooms/${room.id}`}>
+                                                                <Eye className="h-4 w-4" />
                                                             </Link>
                                                         </Button>
-                                                        {room.status === 'available' && (
-                                                            <Button asChild size="sm">
-                                                                <Link href={`/Borrowings/Create?room=${room.id}`}>
-                                                                    <Calendar className="h-4 w-4 mr-2" />
-                                                                    Pinjam
+                                                        {room.status === 'tersedia' && (
+                                                            <Button size="sm" asChild>
+                                                                <Link href={`/borrowings/create?room=${room.id}`}>
+                                                                    <Calendar className="h-4 w-4" />
                                                                 </Link>
                                                             </Button>
                                                         )}
                                                         {isAdmin && (
-                                                            <DropdownMenu>
-                                                                <DropdownMenuTrigger asChild>
-                                                                    <Button variant="ghost" size="sm">
-                                                                        <MoreVertical className="h-4 w-4" />
-                                                                    </Button>
-                                                                </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end">
-                                                                    <DropdownMenuItem asChild>
-                                                                        <Link href={`/rooms/${room.id}/edit`}>
-                                                                            <Edit className="h-4 w-4 mr-2" />
-                                                                            Edit
-                                                                        </Link>
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator />
-                                                                    <AlertDialog>
-                                                                        <AlertDialogTrigger asChild>
-                                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                                                Hapus
-                                                                            </DropdownMenuItem>
-                                                                        </AlertDialogTrigger>
-                                                                        <AlertDialogContent>
-                                                                            <AlertDialogHeader>
-                                                                                <AlertDialogTitle>Hapus Ruangan</AlertDialogTitle>
-                                                                                <AlertDialogDescription>
-                                                                                    Apakah Anda yakin ingin menghapus ruangan {room.name}? 
-                                                                                    Tindakan ini tidak dapat dibatalkan.
-                                                                                </AlertDialogDescription>
-                                                                            </AlertDialogHeader>
-                                                                            <AlertDialogFooter>
-                                                                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                                <AlertDialogAction
-                                                                                    onClick={() => handleDeleteRoom(room.id)}
-                                                                                    className="bg-red-600 hover:bg-red-700"
-                                                                                >
-                                                                                    Hapus
-                                                                                </AlertDialogAction>
-                                                                            </AlertDialogFooter>
-                                                                        </AlertDialogContent>
-                                                                    </AlertDialog>
-                                                                </DropdownMenuContent>
-                                                            </DropdownMenu>
+                                                            <Button variant="outline" size="sm" asChild>
+                                                                <Link href={`/Rooms/${room.id}/edit`}>
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Link>
+                                                            </Button>
                                                         )}
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    )}
-                                </Card>
-                            ))}
-                        </div>
-
-                        {/* Pagination */}
-                        {rooms.last_page > 1 && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-sm text-gray-700">
-                                            Menampilkan {rooms.from} - {rooms.to} dari {rooms.total} ruangan
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            {rooms.links?.map((link, index) => (
-                                                <Button
-                                                    key={index}
-                                                    variant={link.active ? "default" : "outline"}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        if (link.url) {
-                                                            const url = new URL(link.url);
-                                                            const page = url.searchParams.get('page');
-                                                            if (page) {
-                                                                handlePageChange(parseInt(page));
-                                                            }
-                                                        }
-                                                    }}
-                                                    disabled={!link.url}
-                                                    className={cn(
-                                                        "min-w-[40px]",
-                                                        link.active && "bg-primary text-primary-foreground"
-                                                    )}
-                                                >
-                                                    {link.label === '&laquo; Previous' ? (
-                                                        <ChevronLeft className="h-4 w-4" />
-                                                    ) : link.label === 'Next &raquo;' ? (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    ) : (
-                                                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                    )}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
+
+                {/* Empty State */}
+                {rooms.data.length === 0 && (
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-12 text-center">
+                            <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <h3 className="font-semibold mb-2">Tidak Ada Ruangan</h3>
+                            <p className="text-muted-foreground mb-4">
+                                {searchTerm || statusFilter !== 'all' ? 'Tidak ada ruangan yang cocok dengan pencarian Anda.' : 'Belum ada ruangan yang terdaftar.'}
+                            </p>
+                            {isAdmin && !searchTerm && statusFilter === 'all' && (
+                                <Button asChild>
+                                    <Link href="/Rooms/create">
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Tambah Ruangan Pertama
+                                    </Link>
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Pagination */}
+                {rooms.data.length > 0 && rooms.last_page > 1 && (
+                    <Card className="border-0 shadow-sm">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">
+                                    Menampilkan {rooms.from} sampai {rooms.to} dari {rooms.total} ruangan
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(rooms.current_page - 1)}
+                                        disabled={rooms.current_page <= 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {rooms.current_page} dari {rooms.last_page}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(rooms.current_page + 1)}
+                                        disabled={rooms.current_page >= rooms.last_page}
+                                    >
+                                        Selanjutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Room Detail Dialog */}
+                <RoomDetailDialog
+                    isOpen={isDetailDialogOpen}
+                    onOpenChange={setIsDetailDialogOpen}
+                    room={selectedRoom}
+                />
             </div>
         </AuthenticatedLayout>
     );

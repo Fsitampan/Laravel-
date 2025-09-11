@@ -1,36 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Calendar as CalendarIcon, Clock, Users, MapPin, Plus, Minus, Building2 } from 'lucide-react';
+import { 
+    AlertCircle, 
+    Calendar as CalendarIcon, 
+    Clock, 
+    Users, 
+    MapPin, 
+    Plus, 
+    Minus, 
+    Building2,
+    ArrowLeft,
+    Save,
+    Camera,
+    CheckCircle,
+    Wrench
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { cn, formatDateTime } from '@/lib/utils';
 import type { PageProps, Room, CreateBorrowingData } from '@/types';
+import { Link } from '@inertiajs/react';
 
 interface CreateBorrowingPageProps extends PageProps {
     rooms: Room[];
     selectedRoom?: Room;
 }
 
+// Mock data untuk gambar ruangan - dalam production akan dari database
+const getRoomImage = (roomName: string): string => {
+    const imageMap: { [key: string]: string } = {
+        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIwcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaXNjdXNzaW9uJTIwcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdWRpdG9yaXVtJTIwc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
+        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral'
+    };
+    
+    const roomCode = roomName.toUpperCase();
+    return imageMap[roomCode] || imageMap['A']; // Default fallback
+};
+
 export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBorrowingPageProps) {
     const [selectedDate, setSelectedDate] = useState<Date>();
     const [selectedRoom_state, setSelectedRoom] = useState<Room | null>(selectedRoom || null);
     const [equipmentList, setEquipmentList] = useState<string[]>(['']);
 
-    // Gunakan CreateBorrowingData atau FormDataType jika masih error
-    const { data, setData, post, processing, errors, reset } = useForm<CreateBorrowingData>({
+    const { data, setData, post, processing, errors, reset } = useForm<Record<string, any>>({
         room_id: selectedRoom?.id || 0,
         borrower_name: auth.user.name || '',
         borrower_phone: auth.user.phone || '',
-        borrower_category: auth.user.category || 'employee',
+        borrower_category: auth.user.category || 'pegawai',
         borrower_department: auth.user.department || '',
         borrower_institution: '',
         purpose: '',
@@ -44,29 +74,98 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
         recurring_end_date: '',
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        post(route('borrowings.store'));
-    };
-
     // Filter available rooms
     const availableRooms = rooms.filter(room => 
-        room.status === 'available' && room.is_active
+        room.status === 'tersedia' && room.is_active
     );
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Basic validation
+        if (!data.room_id || data.room_id === 0) {
+            toast.error('Silakan pilih ruangan');
+            return;
+        }
+        
+        if (!data.borrower_name.trim()) {
+            toast.error('Nama peminjam harus diisi');
+            return;
+        }
+        
+        if (!data.borrower_phone.trim()) {
+            toast.error('Nomor telepon harus diisi');
+            return;
+        }
+        
+        if (!data.purpose.trim()) {
+            toast.error('Tujuan peminjaman harus diisi');
+            return;
+        }
+        
+        if (!data.borrowed_at) {
+            toast.error('Waktu mulai harus diisi');
+            return;
+        }
+        
+        if (!data.planned_return_at) {
+            toast.error('Waktu selesai harus diisi');
+            return;
+        }
+        
+        // Validate start time is not in the past
+        const borrowedAt = new Date(data.borrowed_at);
+        const now = new Date();
+        if (borrowedAt < now) {
+            toast.error('Waktu mulai tidak boleh di masa lampau');
+            return;
+        }
+        
+        // Validate end time is after start time
+        const plannedReturnAt = new Date(data.planned_return_at);
+        if (plannedReturnAt <= borrowedAt) {
+            toast.error('Waktu selesai harus setelah waktu mulai');
+            return;
+        }
+        
+        // Validate participant count doesn't exceed room capacity
+        if (selectedRoom_state && data.participant_count > selectedRoom_state.capacity) {
+            toast.error(`Jumlah peserta tidak boleh melebihi kapasitas ruangan (${selectedRoom_state.capacity} orang)`);
+            return;
+        }
+        
+        if (data.is_recurring) {
+            if (!data.recurring_pattern) {
+                toast.error('Pola pengulangan harus dipilih untuk peminjaman berulang');
+                return;
+            }
+            if (!data.recurring_end_date) {
+                toast.error('Tanggal berakhir harus diisi untuk peminjaman berulang');
+                return;
+            }
+        }
+        
+        post('/Borrowings', {
+            onSuccess: () => {
+                toast.success('Peminjaman berhasil diajukan');
+                router.visit('/Borrowings');
+            },
+            onError: (errors) => {
+                console.error('Form errors:', errors);
+                const firstError = Object.values(errors)[0] as string;
+                if (firstError) {
+                    toast.error(firstError);
+                } else {
+                    toast.error('Terjadi kesalahan saat mengajukan peminjaman');
+                }
+            }
+        });
+    };
 
     const handleRoomSelect = (roomId: string) => {
         const room = availableRooms.find(r => r.id === parseInt(roomId));
         setSelectedRoom(room || null);
         setData('room_id', parseInt(roomId));
-    };
-
-    const handleDateTimeChange = (field: 'borrowed_at' | 'planned_return_at', date: Date | undefined, time: string) => {
-        if (date && time) {
-            const [hours, minutes] = time.split(':');
-            const dateTime = new Date(date);
-            dateTime.setHours(parseInt(hours), parseInt(minutes));
-            setData(field, dateTime.toISOString().slice(0, 16));
-        }
     };
 
     const addEquipment = () => {
@@ -86,36 +185,128 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
         setData('equipment_needed', newList.filter(item => item.trim() !== ''));
     };
 
+    useEffect(() => {
+        if (selectedRoom) {
+            setSelectedRoom(selectedRoom);
+            setData('room_id', selectedRoom.id);
+        }
+    }, [selectedRoom]);
+
+    // Auto-calculate estimated duration
+    useEffect(() => {
+        if (data.borrowed_at && !data.planned_return_at) {
+            const borrowedDate = new Date(data.borrowed_at);
+            const estimatedEnd = new Date(borrowedDate.getTime() + 2 * 60 * 60 * 1000); // Add 2 hours
+            setData('planned_return_at', estimatedEnd.toISOString().slice(0, 16));
+        }
+    }, [data.borrowed_at]);
+
+    const getDuration = () => {
+        if (data.borrowed_at && data.planned_return_at) {
+            const start = new Date(data.borrowed_at);
+            const end = new Date(data.planned_return_at);
+            const diff = end.getTime() - start.getTime();
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            return `${hours} jam ${minutes} menit`;
+        }
+        return '-';
+    };
+
+    console.log("Form state:", data);
+
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Buat Peminjaman Ruangan" />
 
             <div className="space-y-6">
                 {/* Header */}
-                <div>
-                    <h1 className="text-3xl font-semibold text-gray-900">
-                        Buat Peminjaman Ruangan
-                    </h1>
-                    <p className="mt-2 text-gray-600">
-                        Isi formulir di bawah untuk mengajukan peminjaman ruangan
-                    </p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-4">
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href="/Borrowings">
+                                    <ArrowLeft className="h-4 w-4 mr-2" />
+                                    Kembali
+                                </Link>
+                            </Button>
+                            <div>
+                                <h1 className="text-3xl font-semibold tracking-tight">
+                                    Buat Peminjaman Ruangan
+                                </h1>
+                                <p className="text-muted-foreground">
+                                    Isi formulir di bawah untuk mengajukan peminjaman ruangan baru
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Main Form */}
                         <div className="lg:col-span-2 space-y-6">
+                            {/* Room Preview */}
+                            {selectedRoom_state && (
+                                <Card className="border-0 shadow-sm">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Camera className="h-5 w-5" />
+                                            Preview Ruangan Terpilih
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Tampilan ruangan yang akan dipinjam
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="relative h-48 rounded-lg overflow-hidden bg-muted">
+                                            <img
+                                                src={getRoomImage(selectedRoom_state.name)}
+                                                alt={`Preview Ruang ${selectedRoom_state.name}`}
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                                            <div className="absolute bottom-4 left-4 right-4">
+                                                <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3">
+                                                    <h3 className="text-white font-semibold text-lg">Ruang {selectedRoom_state.name}</h3>
+                                                    <div className="flex items-center gap-4 mt-1 text-white/90 text-sm">
+                                                        <div className="flex items-center gap-1">
+                                                            <Users className="h-4 w-4" />
+                                                            <span>Kapasitas {selectedRoom_state.capacity} orang</span>
+                                                        </div>
+                                                        {selectedRoom_state.location && (
+                                                            <div className="flex items-center gap-1">
+                                                                <MapPin className="h-4 w-4" />
+                                                                <span>{selectedRoom_state.location}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="absolute top-4 right-4">
+                                                <Badge variant="outline" className="backdrop-blur-sm bg-white/90">
+                                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                                    Tersedia
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
                             {/* Room Selection */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <Building2 className="h-5 w-5 mr-2" />
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Building2 className="h-5 w-5" />
                                         Pilih Ruangan
                                     </CardTitle>
+                                    <CardDescription>
+                                        Pilih ruangan yang tersedia untuk dipinjam
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div>
-                                        <Label htmlFor="room_id">Ruangan</Label>
+                                        <Label htmlFor="room_id">Ruangan *</Label>
                                         <Select 
                                             value={data.room_id.toString()} 
                                             onValueChange={handleRoomSelect}
@@ -124,16 +315,22 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 <SelectValue placeholder="Pilih ruangan yang tersedia" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {availableRooms.map((room) => (
-                                                    <SelectItem key={room.id} value={room.id.toString()}>
-                                                        <div className="flex items-center justify-between w-full">
-                                                            <span>Ruang {room.name}</span>
-                                                            <Badge variant="outline" className="ml-2">
-                                                                {room.capacity} orang
-                                                            </Badge>
-                                                        </div>
-                                                    </SelectItem>
-                                                ))}
+                                                {availableRooms.length === 0 ? (
+                                                    <div className="p-2 text-center text-gray-500">
+                                                        Tidak ada ruangan tersedia
+                                                    </div>
+                                                ) : (
+                                                    availableRooms.map((room) => (
+                                                        <SelectItem key={room.id} value={room.id.toString()}>
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <span>Ruang {room.name}</span>
+                                                                <Badge variant="outline" className="ml-2">
+                                                                    {room.capacity} orang
+                                                                </Badge>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))
+                                                )}
                                             </SelectContent>
                                         </Select>
                                         {errors.room_id && (
@@ -163,7 +360,9 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                     {selectedRoom_state.description}
                                                 </p>
                                             )}
-                                            {selectedRoom_state.facilities && selectedRoom_state.facilities.length > 0 && (
+                                            
+                                            {/* Bagian yang sudah diperbaiki */}
+                                            {selectedRoom_state.facilities && Array.isArray(selectedRoom_state.facilities) && selectedRoom_state.facilities.length > 0 && (
                                                 <div className="mt-3">
                                                     <p className="text-sm font-medium text-blue-900 mb-2">Fasilitas:</p>
                                                     <div className="flex flex-wrap gap-1">
@@ -181,14 +380,20 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                             </Card>
 
                             {/* Personal Information */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle>Informasi Peminjam</CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Users className="h-5 w-5" />
+                                        Informasi Peminjam
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Data diri dan kontak peminjam ruangan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <Label htmlFor="borrower_name">Nama Peminjam</Label>
+                                            <Label htmlFor="borrower_name">Nama Peminjam *</Label>
                                             <Input
                                                 id="borrower_name"
                                                 type="text"
@@ -196,6 +401,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 onChange={(e) => setData('borrower_name', e.target.value)}
                                                 className={cn(errors.borrower_name && "border-red-500")}
                                                 placeholder="Masukkan nama lengkap"
+                                                required
                                             />
                                             {errors.borrower_name && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.borrower_name}</p>
@@ -203,7 +409,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="borrower_phone">Nomor Telepon</Label>
+                                            <Label htmlFor="borrower_phone">Nomor Telepon *</Label>
                                             <Input
                                                 id="borrower_phone"
                                                 type="tel"
@@ -211,6 +417,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 onChange={(e) => setData('borrower_phone', e.target.value)}
                                                 className={cn(errors.borrower_phone && "border-red-500")}
                                                 placeholder="08xxxxxxxxxx"
+                                                required
                                             />
                                             {errors.borrower_phone && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.borrower_phone}</p>
@@ -220,7 +427,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <Label htmlFor="borrower_category">Kategori</Label>
+                                            <Label htmlFor="borrower_category">Kategori *</Label>
                                             <Select 
                                                 value={data.borrower_category} 
                                                 onValueChange={(value) => setData('borrower_category', value as any)}
@@ -229,9 +436,9 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="employee">Pegawai</SelectItem>
-                                                    <SelectItem value="guest">Tamu</SelectItem>
-                                                    <SelectItem value="intern">Magang</SelectItem>
+                                                    <SelectItem value="pegawai">Pegawai</SelectItem>
+                                                    <SelectItem value="tamu">Tamu</SelectItem>
+                                                    <SelectItem value="anak-magang">Magang</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             {errors.borrower_category && (
@@ -240,7 +447,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="participant_count">Jumlah Peserta</Label>
+                                            <Label htmlFor="participant_count">Jumlah Peserta *</Label>
                                             <Input
                                                 id="participant_count"
                                                 type="number"
@@ -249,9 +456,15 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 value={data.participant_count}
                                                 onChange={(e) => setData('participant_count', parseInt(e.target.value) || 1)}
                                                 className={cn(errors.participant_count && "border-red-500")}
+                                                required
                                             />
                                             {errors.participant_count && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.participant_count}</p>
+                                            )}
+                                            {selectedRoom_state && (
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Maksimal {selectedRoom_state.capacity} orang
+                                                </p>
                                             )}
                                         </div>
                                     </div>
@@ -284,17 +497,20 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                             </Card>
 
                             {/* Schedule */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <CalendarIcon className="h-5 w-5 mr-2" />
+                                    <CardTitle className="flex items-center gap-2">
+                                        <CalendarIcon className="h-5 w-5" />
                                         Jadwal Peminjaman
                                     </CardTitle>
+                                    <CardDescription>
+                                        Tentukan waktu dan durasi peminjaman ruangan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <Label htmlFor="borrowed_at">Mulai</Label>
+                                            <Label htmlFor="borrowed_at">Mulai *</Label>
                                             <Input
                                                 id="borrowed_at"
                                                 type="datetime-local"
@@ -302,6 +518,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 onChange={(e) => setData('borrowed_at', e.target.value)}
                                                 className={cn(errors.borrowed_at && "border-red-500")}
                                                 min={new Date().toISOString().slice(0, 16)}
+                                                required
                                             />
                                             {errors.borrowed_at && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.borrowed_at}</p>
@@ -309,7 +526,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="planned_return_at">Selesai (Estimasi)</Label>
+                                            <Label htmlFor="planned_return_at">Selesai (Estimasi) *</Label>
                                             <Input
                                                 id="planned_return_at"
                                                 type="datetime-local"
@@ -317,12 +534,22 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 onChange={(e) => setData('planned_return_at', e.target.value)}
                                                 className={cn(errors.planned_return_at && "border-red-500")}
                                                 min={data.borrowed_at || new Date().toISOString().slice(0, 16)}
+                                                required
                                             />
                                             {errors.planned_return_at && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.planned_return_at}</p>
                                             )}
                                         </div>
                                     </div>
+
+                                    {data.borrowed_at && data.planned_return_at && (
+                                        <div className="p-3 bg-blue-50 rounded-lg">
+                                            <p className="text-sm text-blue-800">
+                                                <Clock className="h-4 w-4 inline mr-1" />
+                                                Durasi peminjaman: {getDuration()}
+                                            </p>
+                                        </div>
+                                    )}
 
                                     {/* Recurring Options */}
                                     <div className="space-y-4">
@@ -338,7 +565,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                         {data.is_recurring && (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6 border-l-2 border-blue-200 bg-blue-50 p-4 rounded">
                                                 <div>
-                                                    <Label htmlFor="recurring_pattern">Pola Pengulangan</Label>
+                                                    <Label htmlFor="recurring_pattern">Pola Pengulangan *</Label>
                                                     <Select 
                                                         value={data.recurring_pattern} 
                                                         onValueChange={(value) => setData('recurring_pattern', value)}
@@ -355,7 +582,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 </div>
 
                                                 <div>
-                                                    <Label htmlFor="recurring_end_date">Tanggal Berakhir</Label>
+                                                    <Label htmlFor="recurring_end_date">Tanggal Berakhir *</Label>
                                                     <Input
                                                         id="recurring_end_date"
                                                         type="date"
@@ -371,13 +598,19 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                             </Card>
 
                             {/* Purpose & Equipment */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle>Keperluan & Peralatan</CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <AlertCircle className="h-5 w-5" />
+                                        Keperluan & Peralatan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Jelaskan tujuan dan peralatan yang dibutuhkan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div>
-                                        <Label htmlFor="purpose">Tujuan Peminjaman</Label>
+                                        <Label htmlFor="purpose">Tujuan Peminjaman *</Label>
                                         <Textarea
                                             id="purpose"
                                             value={data.purpose}
@@ -385,6 +618,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                             className={cn(errors.purpose && "border-red-500")}
                                             placeholder="Jelaskan tujuan dan kegiatan yang akan dilakukan"
                                             rows={3}
+                                            required
                                         />
                                         {errors.purpose && (
                                             <p className="text-sm text-red-600 mt-1">{errors.purpose}</p>
@@ -444,9 +678,15 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                         {/* Sidebar */}
                         <div className="space-y-6">
                             {/* Summary */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle>Ringkasan Peminjaman</CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Save className="h-5 w-5" />
+                                        Ringkasan Peminjaman
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Review data peminjaman sebelum diajukan
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
@@ -464,68 +704,60 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                             <span className="text-gray-600">Peserta:</span>
                                             <span className="font-medium">{data.participant_count} orang</span>
                                         </div>
-                                        {data.borrowed_at && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Mulai:</span>
+                                            <span className="font-medium">
+                                                {data.borrowed_at ? formatDateTime(data.borrowed_at) : 'Belum dipilih'}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Selesai:</span>
+                                            <span className="font-medium">
+                                                {data.planned_return_at ? formatDateTime(data.planned_return_at) : 'Belum dipilih'}
+                                            </span>
+                                        </div>
+                                        {data.borrowed_at && data.planned_return_at && (
                                             <div className="flex justify-between text-sm">
-                                                <span className="text-gray-600">Mulai:</span>
-                                                <span className="font-medium">
-                                                    {formatDateTime(data.borrowed_at)}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {data.planned_return_at && (
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-gray-600">Selesai:</span>
-                                                <span className="font-medium">
-                                                    {formatDateTime(data.planned_return_at)}
-                                                </span>
+                                                <span className="text-gray-600">Durasi:</span>
+                                                <span className="font-medium">{getDuration()}</span>
                                             </div>
                                         )}
                                     </div>
                                 </CardContent>
                             </Card>
 
-                            {/* Guidelines */}
-                            <Card>
+                            {/* Information */}
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <AlertCircle className="h-5 w-5 mr-2" />
-                                        Panduan
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Building2 className="h-5 w-5" />
+                                        Informasi Penting
                                     </CardTitle>
+                                    <CardDescription>
+                                        Hal-hal yang perlu diperhatikan
+                                    </CardDescription>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3 text-sm text-gray-600">
-                                        <div className="flex items-start space-x-2">
-                                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                                            <p>Peminjaman harus diajukan minimal H-1 dari tanggal penggunaan</p>
-                                        </div>
-                                        <div className="flex items-start space-x-2">
-                                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                                            <p>Pastikan jumlah peserta tidak melebihi kapasitas ruangan</p>
-                                        </div>
-                                        <div className="flex items-start space-x-2">
-                                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                                            <p>Peminjaman akan diproses oleh admin dalam 1x24 jam</p>
-                                        </div>
-                                        <div className="flex items-start space-x-2">
-                                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                                            <p>Jaga kebersihan dan keutuhan fasilitas ruangan</p>
-                                        </div>
-                                    </div>
+                                <CardContent className="space-y-3 text-sm text-gray-600">
+                                    <p>• Peminjaman akan diproses oleh admin</p>
+                                    <p>• Konfirmasi akan dikirim via notifikasi</p>
+                                    <p>• Pastikan data yang diisi sudah benar</p>
+                                    <p>• Ruangan harus diserahkan sesuai waktu</p>
                                 </CardContent>
                             </Card>
 
                             {/* Submit Button */}
-                            <Card>
-                                <CardContent className="p-4">
+                            <Card className="border-0 shadow-sm sticky top-6">
+                                <CardContent className="p-6">
                                     <Button 
-                                        type="submit" 
-                                        className="w-full"
-                                        disabled={processing || !data.room_id || !data.borrower_name || !data.purpose || !data.borrowed_at}
+                                    type="submit" 
+                                    className="w-full"
+                                    disabled={processing}
                                     >
-                                        {processing ? 'Menyimpan...' : 'Ajukan Peminjaman'}
+                                    <Save className="h-4 w-4 mr-2" />
+                                    {processing ? 'Memproses...' : 'Ajukan Peminjaman'}
                                     </Button>
-                                    <p className="text-xs text-gray-500 text-center mt-2">
-                                        Peminjaman akan menunggu persetujuan admin
+                                    <p className="text-xs text-muted-foreground text-center mt-2">
+                                        Peminjaman akan direview oleh admin
                                     </p>
                                 </CardContent>
                             </Card>

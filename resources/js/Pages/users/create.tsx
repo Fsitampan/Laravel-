@@ -36,7 +36,7 @@ export default function Create({ roles }: PageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
 
-  const { data, setData, post, processing, errors, reset } = useForm<FormData>({
+  const { data, setData, post, processing, errors, reset } = useForm<Record<string, any>>({
     name: '',
     email: '',
     password: '',

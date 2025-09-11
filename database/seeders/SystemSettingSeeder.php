@@ -26,7 +26,7 @@ class SystemSettingSeeder extends Seeder
             // Booking Settings
             ['key' => 'max_booking_days_ahead', 'value' => '30', 'type' => 'integer', 'description' => 'Maksimal hari booking ke depan', 'is_public' => false],
             ['key' => 'min_booking_hours_ahead', 'value' => '2', 'type' => 'integer', 'description' => 'Minimal jam booking ke depan', 'is_public' => false],
-            ['key' => 'auto_approve_employee', 'value' => 'false', 'type' => 'boolean', 'description' => 'Auto approve untuk pegawai', 'is_public' => false],
+            ['key' => 'auto_approve_pegawai', 'value' => 'false', 'type' => 'boolean', 'description' => 'Auto approve untuk pegawai', 'is_public' => false],
             ['key' => 'max_booking_duration_hours', 'value' => '8', 'type' => 'integer', 'description' => 'Maksimal durasi booking (jam)', 'is_public' => false],
             
             // Notification Settings

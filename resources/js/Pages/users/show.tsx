@@ -91,7 +91,7 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                         </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                        {room.status === 'available' && (
+                        {room.status === 'tersedia' && (
                             <Button asChild>
                                 <Link href={`/Borrowings/create?room=${room.id}`}>
                                     <Calendar className="h-4 w-4 mr-2" />
@@ -184,14 +184,6 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                                     <MapPin className="h-5 w-5 text-gray-400" />
                                                     <span className="text-lg">{room.location}</span>
                                                 </div>
-                                            </div>
-                                        )}
-                                        {room.hourly_rate && room.hourly_rate > 0 && (
-                                            <div>
-                                                <label className="text-sm font-medium text-gray-500">Tarif per Jam</label>
-                                                <p className="text-lg font-medium">
-                                                    Rp {room.hourly_rate.toLocaleString('id-ID')}
-                                                </p>
                                             </div>
                                         )}
                                     </div>
@@ -298,7 +290,7 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                 <CardTitle>Aksi Cepat</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                {room.status === 'available' && room.is_active && (
+                                {room.status === 'tersedia' && room.is_active && (
                                     <Button className="w-full" asChild>
                                         <Link href={`/Borrowings/create?room=${room.id}`}>
                                             <Calendar className="h-4 w-4 mr-2" />
