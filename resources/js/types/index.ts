@@ -46,6 +46,7 @@ export interface Room {
     facilities?: string[];
     location?: string;
     image?: string;
+    image_url: string;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -60,7 +61,6 @@ export interface Room {
     
     // Computed properties
     status_label?: string;
-    image_url?: string;
     facilities_text?: string;
     
     // Status helpers

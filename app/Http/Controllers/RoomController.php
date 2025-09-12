@@ -47,6 +47,10 @@ class RoomController extends Controller
             'status' => $room->status,
             'facilities' => $room->facilities,
             'borrowings_count' => $room->borrowings_count,
+            'image_url' => $room->image 
+            ? asset('storage/' . $room->image) // kalau ada file lokal
+            : ($room->image_url ?: 'https://source.unsplash.com/800x600/?meeting,room'),
+
             'current_borrowing' => $currentBorrowing ? [
                 'id' => $currentBorrowing->id,
                 'borrower_name' => $currentBorrowing->borrower_name,
@@ -81,7 +85,20 @@ class RoomController extends Controller
      */
     public function store(StoreRoomRequest $request)
     {
-        $room = Room::create($request->validated());
+        $data = $request->validated();
+
+        // Cek upload file
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('rooms', 'public');
+            $data['image'] = $path;
+            $data['image_url'] = null; // kalau pakai upload, kosongkan url
+        } elseif ($request->filled('image_url')) {
+            // Kalau user isi URL
+            $data['image_url'] = $request->input('image_url');
+            $data['image'] = null;
+        }
+
+        $room = Room::create($data);
 
         return redirect()->route('Rooms.Index')
             ->with('success', 'Ruangan berhasil ditambahkan.');
@@ -180,20 +197,24 @@ class RoomController extends Controller
     /**
      * Update the specified room in storage.
      */
-    public function update(UpdateRoomRequest $request, Room $room)
-{
-    $data = $request->validated();
+        public function update(UpdateRoomRequest $request, Room $room)
+        {
+            $data = $request->validated();
 
-    if ($request->hasFile('image')) {
-        $path = $request->file('image')->store('rooms', 'public'); 
-        $data['image'] = $path; // simpan "rooms/namafile.png"
-    }
+            if ($request->hasFile('image')) {
+                $path = $request->file('image')->store('rooms', 'public');
+                $data['image'] = $path;
+                $data['image_url'] = null;
+            } elseif ($request->filled('image_url')) {
+                $data['image_url'] = $request->input('image_url');
+                $data['image'] = null;
+            }
 
-    $room->update($data);
+            $room->update($data);
 
-    return redirect()->route('Rooms.Show', $room)
-        ->with('success', 'Ruangan berhasil diperbarui.');
-    }
+            return redirect()->route('Rooms.Show', $room)
+                ->with('success', 'Ruangan berhasil diperbarui.');
+        }
 
     /**
      * Update room status.
