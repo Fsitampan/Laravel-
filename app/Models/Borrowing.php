@@ -16,44 +16,69 @@ class Borrowing extends Model
     use HasFactory;
 
     protected $fillable = [
-        'room_id', 'user_id', 'borrower_name', 'borrower_email', 
-        'borrower_phone', 'borrower_identification', 'borrower_category',
-        'borrower_department', 'borrow_date', 'start_time', 'end_time',
-        'return_date', 'actual_return_date', 'purpose', 'notes',
-        'status', 'approved_by', 'approved_at', 'rejection_reason',
-        'created_by', 'borrowed_at', 'planned_return_at'
+        'room_id',
+        'user_id',
+
+        // Data peminjam
+        'borrower_name',
+        'borrower_email',
+        'borrower_phone',
+        'borrower_identification',
+        'borrower_category',
+        'borrower_department',
+        'borrower_institution',
+
+        // Waktu pinjam
+        'borrow_date',
+        'start_time',
+        'end_time',
+        'borrowed_at',
+        'planned_return_at',
+        'return_date',
+        'actual_return_date',
+
+        // Detail pinjaman
+        'purpose',
+        'status',
+        'notes',
+        'rejection_reason',
+        'participant_count',
+        'equipment_needed',
+
+        // Persetujuan
+        'approved_by',
+        'approved_at',
+
+        'created_by',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'status' => BorrowingStatus::class,
-            'borrower_category' => UserCategory::class,
-            'borrow_date' => 'date',
-            'return_date' => 'date',
-            'start_time' => 'datetime:H:i',
-            'end_time' => 'datetime:H:i',
-            'actual_return_date' => 'datetime',
-            'approved_at' => 'datetime',
-            'borrowed_at' => 'datetime',
-            'planned_return_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+    'borrow_date'        => 'date',
+    'return_date'        => 'date',
+    'borrowed_at'        => 'datetime',
+    'planned_return_at'  => 'datetime',
+    'actual_return_date' => 'datetime',
+    'approved_at'        => 'datetime',
+    'equipment_needed'   => 'array',
+    'status'             => \App\Enums\BorrowingStatus::class,
+    'borrower_category'  => \App\Enums\UserCategory::class,
+];
 
-    // Auto-generate datetime fields when saving
+
+    // Auto-generate datetime fields (hanya jika belum diset controller)
     protected static function boot()
     {
         parent::boot();
 
         static::saving(function ($borrowing) {
-            // Generate borrowed_at from borrow_date + start_time
-            if ($borrowing->borrow_date && $borrowing->start_time) {
+            // Generate borrowed_at jika belum ada
+            if (!$borrowing->borrowed_at && $borrowing->borrow_date && $borrowing->start_time) {
                 $borrowing->borrowed_at = Carbon::parse($borrowing->borrow_date)
                     ->setTimeFromTimeString($borrowing->start_time);
             }
 
-            // Generate planned_return_at from return_date + end_time
-            if ($borrowing->return_date && $borrowing->end_time) {
+            // Generate planned_return_at jika belum ada
+            if (!$borrowing->planned_return_at && $borrowing->return_date && $borrowing->end_time) {
                 $borrowing->planned_return_at = Carbon::parse($borrowing->return_date)
                     ->setTimeFromTimeString($borrowing->end_time);
             }
@@ -81,7 +106,7 @@ class Borrowing extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function histories(): HasMany
+    public function history(): HasMany
     {
         return $this->hasMany(BorrowingHistory::class);
     }
@@ -115,77 +140,29 @@ class Borrowing extends Model
         );
     }
 
-    // Helper methods
-    public function isPending(): bool
-    {
-        return $this->status === BorrowingStatus::PENDING;
-    }
+    // Helper methods (status checks)
+    public function isPending(): bool    { return $this->status === BorrowingStatus::PENDING; }
+    public function isApproved(): bool   { return $this->status === BorrowingStatus::APPROVED; }
+    public function isActive(): bool     { return $this->status === BorrowingStatus::ACTIVE; }
+    public function isCompleted(): bool  { return $this->status === BorrowingStatus::COMPLETED; }
+    public function isRejected(): bool   { return $this->status === BorrowingStatus::REJECTED; }
+    public function isCancelled(): bool  { return $this->status === BorrowingStatus::CANCELLED; }
 
-    public function isApproved(): bool
-    {
-        return $this->status === BorrowingStatus::APPROVED;
-    }
-
-    public function isActive(): bool
-    {
-        return $this->status === BorrowingStatus::ACTIVE;
-    }
-
-    public function isCompleted(): bool
-    {
-        return $this->status === BorrowingStatus::COMPLETED;
-    }
-
-    public function isRejected(): bool
-    {
-        return $this->status === BorrowingStatus::REJECTED;
-    }
-
-    public function isCancelled(): bool
-    {
-        return $this->status === BorrowingStatus::CANCELLED;
-    }
-
-    public function canBeApproved(): bool
-    {
-        return $this->isPending();
-    }
-
-    public function canBeRejected(): bool
-    {
-        return $this->isPending();
-    }
-
-    public function canBeStarted(): bool
-    {
-        return $this->isApproved() && $this->borrowed_at <= now();
-    }
-
-    public function canBeCompleted(): bool
-    {
-        return $this->isActive();
-    }
-
-    public function canBeCancelled(): bool
-    {
-        return in_array($this->status, [BorrowingStatus::PENDING, BorrowingStatus::APPROVED]);
-    }
+    public function canBeApproved(): bool  { return $this->isPending(); }
+    public function canBeRejected(): bool  { return $this->isPending(); }
+    public function canBeStarted(): bool   { return $this->isApproved() && $this->borrowed_at <= now(); }
+    public function canBeCompleted(): bool { return $this->isActive(); }
+    public function canBeCancelled(): bool { return in_array($this->status, [BorrowingStatus::PENDING, BorrowingStatus::APPROVED]); }
 
     public function getDurationInHours(): float
     {
-        if (!$this->borrowed_at || !$this->planned_return_at) {
-            return 0;
-        }
-        
+        if (!$this->borrowed_at || !$this->planned_return_at) return 0;
         return $this->borrowed_at->diffInHours($this->planned_return_at);
     }
 
     public function getActualDurationInHours(): float
     {
-        if (!$this->borrowed_at || !$this->actual_return_date) {
-            return 0;
-        }
-        
+        if (!$this->borrowed_at || !$this->actual_return_date) return 0;
         return $this->borrowed_at->diffInHours($this->actual_return_date);
     }
 
@@ -195,55 +172,34 @@ class Borrowing extends Model
     }
 
     // Scopes
-    public function scopePending($query)
-    {
-        return $query->where('status', BorrowingStatus::PENDING);
+    public function scopePending($query)   { return $query->where('status', BorrowingStatus::PENDING); }
+    public function scopeApproved($query)  { return $query->where('status', BorrowingStatus::APPROVED); }
+    public function scopeActive($query)    { return $query->where('status', BorrowingStatus::ACTIVE); }
+    public function scopeCompleted($query) { return $query->where('status', BorrowingStatus::COMPLETED); }
+    public function scopeRejected($query)  { return $query->where('status', BorrowingStatus::REJECTED); }
+    public function scopeOverdue($query)   { return $query->where('status', BorrowingStatus::ACTIVE)->where('planned_return_at', '<', now()); }
+    public function scopeToday($query)     { return $query->whereDate('borrow_date', today()); }
+    public function scopeThisWeek($query)  { return $query->whereBetween('borrow_date', [now()->startOfWeek(), now()->endOfWeek()]); }
+    public function scopeThisMonth($query) { return $query->whereMonth('borrow_date', now()->month)->whereYear('borrow_date', now()->year); }
+
+    // ✅ Fix: scopeForUser untuk User object / ID
+   public function scopeForUser($query, $user, $viewAll = false)
+{
+    if (!$user) return $query;
+
+    // Admin & super-admin bisa lihat semua data
+    if (in_array($user->role, ['admin', 'super-admin'])) {
+        return $query;
     }
 
-    public function scopeApproved($query)
-    {
-        return $query->where('status', BorrowingStatus::APPROVED);
+    // Kalau user biasa, defaultnya lihat miliknya sendiri
+    if ($viewAll) {
+        return $query; // override → lihat semua
     }
 
-    public function scopeActive($query)
-    {
-        return $query->where('status', BorrowingStatus::ACTIVE);
-    }
+    return $query->where('user_id', $user->id ?? $user);
+}
 
-    public function scopeCompleted($query)
-    {
-        return $query->where('status', BorrowingStatus::COMPLETED);
-    }
-
-    public function scopeRejected($query)
-    {
-        return $query->where('status', BorrowingStatus::REJECTED);
-    }
-
-    public function scopeOverdue($query)
-    {
-        return $query->where('status', BorrowingStatus::ACTIVE)
-                    ->where('planned_return_at', '<', now());
-    }
-
-    public function scopeToday($query)
-    {
-        return $query->whereDate('borrow_date', today());
-    }
-
-    public function scopeThisWeek($query)
-    {
-        return $query->whereBetween('borrow_date', [
-            now()->startOfWeek(),
-            now()->endOfWeek()
-        ]);
-    }
-
-    public function scopeThisMonth($query)
-    {
-        return $query->whereMonth('borrow_date', now()->month)
-                    ->whereYear('borrow_date', now()->year);
-    }
 
     // For Inertia.js sharing
     public function toInertiaArray(): array
@@ -260,7 +216,7 @@ class Borrowing extends Model
             'borrower_category_label' => $this->borrower_category->label(),
             'borrower_category_color' => $this->borrower_category->color(),
             'borrower_department' => $this->borrower_department,
-            'borrow_date' => $this->borrow_date->format('Y-m-d'),
+            'borrow_date' => $this->borrow_date?->format('Y-m-d'),
             'start_time' => $this->start_time,
             'end_time' => $this->end_time,
             'return_date' => $this->return_date?->format('Y-m-d'),
@@ -292,16 +248,27 @@ class Borrowing extends Model
         ];
     }
 
-    public function scopeForUser($query, $userId)
-    {
-        return $query->where('user_id', $userId);
-    }
-
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+      public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+       public function performer(): BelongsTo
+    {
+        // Eloquent akan mencari foreign key 'user_id' di tabel borrowing_histories.
+        // Jika nama kolom Anda berbeda (misalnya, 'performed_by'),
+        // ubah menjadi: return $this->belongsTo(User::class, 'performed_by');
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // Relasi ke borrowing jika ada
+    public function borrowing(): BelongsTo
+    {
+        return $this->belongsTo(Borrowing::class);
+    }
 }
-
-
-    

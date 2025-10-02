@@ -1,13 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
+import { UserAvatar } from '@/components/PhotoUpload';
+import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
+import {
+    Users,
+    Plus,
+    Search,
+    Filter,
+    User,
+    Mail,
+    Phone,
+    Shield,
+    UserCheck,
+    UserX,
+    Eye,
+    Edit,
+    MoreHorizontal,
+    Crown,
+    Settings,
+    UserCog,
+    Building,
+    Activity,
+    TrendingUp,
+    ArrowUpRight,
+    CheckCircle,
+    Download,
+    Camera,
+    Image as ImageIcon
+} from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -27,753 +55,635 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
-    Users,
-    Search,
-    Plus,
-    Filter,
-    Grid3X3,
-    List,
-    Eye,
-    Edit,
-    Trash2,
-    MoreVertical,
-    Crown,
-    Shield,
-    UserCheck,
-    Mail,
-    Phone,
-    Building,
-    CheckCircle,
-    XCircle,
-    Download,
-    RefreshCw,
-    UserPlus,
-    ChevronLeft,
-    ChevronRight
-} from 'lucide-react';
-import { cn, formatDateTime, getStatusColor, getStatusLabel, getUserInitials } from '@/lib/utils';
-import type { PageProps, User, PaginatedResponse, UserFilters } from '@/types';
+import { cn, getStatusColor, getStatusLabel, getUserInitials, debounce } from '@/lib/utils';
+import type { PageProps, User as UserType, PaginatedResponse, UserFilters } from '@/types';
 
 interface UsersPageProps extends PageProps {
-    users: PaginatedResponse<User>;
+    users: PaginatedResponse<UserType>;
     filters: UserFilters;
-    stats: {
-        total: number;
-        active: number;
-        inactive: number;
-        admins: number;
-        super_admins: number;
-        regular_users: number;
-    };
 }
 
-export default function UsersIndex({ auth, users, filters, stats }: UsersPageProps) {
-    const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
-    const [searchQuery, setSearchQuery] = useState(filters.search || '');
-    const [selectedRole, setSelectedRole] = useState<string>(filters.role || 'all');
-    const [selectedCategory, setSelectedCategory] = useState<string>(filters.category || 'all');
-    const [selectedStatus, setSelectedStatus] = useState<string>(
-        filters.is_active === true ? 'active' : 
+export default function UsersIndex({ auth, users, filters }: UsersPageProps) {
+    const [searchTerm, setSearchTerm] = useState(filters.search || '');
+    const [roleFilter, setRoleFilter] = useState(filters.role ?? 'all');
+    const [categoryFilter, setCategoryFilter] = useState(filters.category ?? 'all');
+    const [statusFilter, setStatusFilter] = useState<string>(
+        filters.is_active === true ? 'active' :
         filters.is_active === false ? 'inactive' : 'all'
     );
-    const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const handleSearch = (query: string) => {
-        router.get('/users', {
-            ...filters,
-            search: query || undefined,
-        }, {
+    const isSuperAdmin = auth.user.role === 'super-admin';
+    const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
+
+    const handleSearch = debounce((value: string) => {
+        router.get('/users', { 
+            ...filters, 
+            search: value,
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
-    };
+    }, 300);
 
-    const handleRoleFilter = (role: string) => {
-        router.get('/users', {
-            ...filters,
+    const handleRoleFilter = (role: 'super-admin' | 'admin' | 'pengguna' | 'all') => {
+        setRoleFilter(role);
+        router.get('/users', { 
+            ...filters, 
             role: role === 'all' ? undefined : role,
-        }, {
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
     };
 
-    const handleCategoryFilter = (category: string) => {
-        router.get('/users', {
-            ...filters,
+    const handleCategoryFilter = (category: 'all' | 'pegawai' | 'tamu' | 'magang') => {
+        setCategoryFilter(category);
+        router.get('/users', { 
+            ...filters, 
             category: category === 'all' ? undefined : category,
-        }, {
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
     };
 
     const handleStatusFilter = (status: string) => {
-        router.get('/users', {
-            ...filters,
-            is_active: status === 'all' ? undefined : status === 'active',
-        }, {
+        setStatusFilter(status);
+        const is_active = status === 'active' ? true : status === 'inactive' ? false : undefined;
+        router.get('/users', { 
+            ...filters, 
+            is_active,
+            page: 1 
+        }, { 
             preserveState: true,
-            replace: true,
+            replace: true 
         });
     };
 
     const handlePageChange = (page: number) => {
-        router.get('/users', {
-            ...filters,
-            page
+        router.get('/users', { 
+            ...filters, 
+            page 
+        }, { 
+            preserveState: true,
+            replace: true 
+        });
+    };
+
+    const toggleUserStatus = (userId: number, currentStatus: boolean) => {
+        router.patch(`/users/${userId}`, {
+            is_active: !currentStatus
         }, {
             preserveState: true,
-            replace: true,
-        });
-    };
-
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        router.reload({
-            only: ['users', 'stats'],
-            onFinish: () => {
-                setTimeout(() => setIsRefreshing(false), 1000);
+            onSuccess: () => {
+                router.reload({ only: ['users'] });
             }
         });
     };
-
-    const handleToggleUserStatus = async (userId: number, isActive: boolean) => {
-        try {
-            await router.patch(`/users/${userId}`, {
-                is_active: !isActive
-            });
-        } catch (error) {
-            console.error('Failed to toggle user status:', error);
-        }
-    };
-
-    const handleDeleteUser = async (userId: number) => {
-        try {
-            await router.delete(`/users/${userId}`);
-        } catch (error) {
-            console.error('Failed to delete user:', error);
-        }
-    };
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (searchQuery !== filters.search) {
-                handleSearch(searchQuery);
-            }
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
-
-    useEffect(() => {
-        setSelectedRole(filters.role || 'all');
-        setSelectedCategory(filters.category || 'all');
-        setSelectedStatus(
-            filters.is_active === true ? 'active' : 
-            filters.is_active === false ? 'inactive' : 'all'
-        );
-    }, [filters]);
 
     const getRoleIcon = (role: string) => {
         switch (role) {
             case 'super-admin':
-                return Crown;
+                return <Crown className="h-4 w-4" />;
             case 'admin':
-                return Shield;
+                return <Shield className="h-4 w-4" />;
             default:
-                return UserCheck;
+                return <User className="h-4 w-4" />;
         }
     };
 
     const getRoleColor = (role: string) => {
         switch (role) {
             case 'super-admin':
-                return 'text-purple-700 bg-purple-100 border-purple-200';
+                return 'role-super-admin';
             case 'admin':
-                return 'text-blue-700 bg-blue-100 border-blue-200';
+                return 'role-admin';
             default:
-                return 'text-emerald-700 bg-emerald-100 border-emerald-200';
+                return 'role-pengguna';
         }
     };
 
     const getCategoryColor = (category: string) => {
         switch (category) {
             case 'employee':
-                return 'text-blue-700 bg-blue-100 border-blue-200';
+                return 'category-employee';
             case 'guest':
-                return 'text-orange-700 bg-orange-100 border-orange-200';
+                return 'category-guest';
             case 'intern':
-                return 'text-purple-700 bg-purple-100 border-purple-200';
+                return 'category-intern';
             default:
-                return 'text-gray-700 bg-gray-100 border-gray-200';
+                return 'bg-gray-50 text-gray-700 border-gray-200';
         }
+    };
+
+   
+    const getCategoryLabel = (category: string) => {
+        switch (category) {
+            case 'pegawai':
+                return 'Pegawai';
+            case 'tamu':
+                return 'Tamu';
+            case 'magang':
+                return 'Magang';
+            default:
+                return 'Tidak Diketahui';
+        }
+    };
+
+    const getRoleLabel = (role: string) => {
+        switch (role) {
+            case 'super-admin':
+                return 'Super Admin';
+            case 'admin':
+                return 'Administrator';
+            default:
+                return 'Pengguna';
+        }
+    };
+
+    const statusCounts = {
+        total: users.total,
+        active: users.data.filter(u => u.is_active).length,
+        inactive: users.data.filter(u => !u.is_active).length,
+        admins: users.data.filter(u => ['admin', 'super-admin'].includes(u.role)).length,
+        users: users.data.filter(u => u.role === 'pengguna').length,
     };
 
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Manajemen Pengguna" />
 
-            <div className="space-y-6">
-                {/* Header Section */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 className="text-3xl font-semibold text-gray-900">
-                            Manajemen Pengguna
-                        </h1>
-                        <p className="mt-2 text-gray-600">
-                            Kelola pengguna sistem BPS Riau
-                        </p>
-                    </div>
-                    <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleRefresh}
-                            disabled={isRefreshing}
-                        >
-                            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                            Refresh
-                        </Button>
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href="/users/export">
-                                <Download className="h-4 w-4 mr-2" />
-                                Export
-                            </Link>
-                        </Button>
-                        <Button asChild>
-                            <Link href="/users/create">
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Tambah Pengguna
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-blue-700">Total</p>
-                                <p className="text-2xl font-bold text-blue-900">{users.total}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-emerald-700">Aktif</p>
-                                <p className="text-2xl font-bold text-emerald-900">{stats.active}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-red-700">Tidak Aktif</p>
-                                <p className="text-2xl font-bold text-red-900">{stats.inactive}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-purple-700">Super Admin</p>
-                                <p className="text-2xl font-bold text-purple-900">{stats.super_admins}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-blue-700">Admin</p>
-                                <p className="text-2xl font-bold text-blue-900">{stats.admins}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
-                        <CardContent className="p-4">
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-gray-700">Pengguna</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.regular_users}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Filters */}
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-                            <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
-                                <div className="relative flex-1 max-w-md">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <Input
-                                        placeholder="Cari pengguna..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-10"
-                                    />
+            <div className="space-y-8">
+                {/* Enhanced Header with Professional Imagery */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-dark to-secondary p-8 text-white shadow-xl">
+                    <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
+                    <div className="relative z-10">
+                        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="space-y-3">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 backdrop-blur-sm">
+                                    <Users className="h-5 w-5" />
+                                    <span className="font-medium">Sistem Manajemen Pengguna</span>
                                 </div>
-                                <Select value={selectedRole} onValueChange={handleRoleFilter}>
-                                    <SelectTrigger className="w-full sm:w-48">
-                                        <SelectValue placeholder="Filter peran" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Semua Peran</SelectItem>
-                                        <SelectItem value="super-admin">Super Admin</SelectItem>
-                                        <SelectItem value="admin">Administrator</SelectItem>
-                                        <SelectItem value="user">Pengguna</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <Select value={selectedCategory} onValueChange={handleCategoryFilter}>
-                                    <SelectTrigger className="w-full sm:w-48">
-                                        <SelectValue placeholder="Filter kategori" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Semua Kategori</SelectItem>
-                                        <SelectItem value="employee">Pegawai</SelectItem>
-                                        <SelectItem value="guest">Tamu</SelectItem>
-                                        <SelectItem value="intern">Magang</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <Select value={selectedStatus} onValueChange={handleStatusFilter}>
-                                    <SelectTrigger className="w-full sm:w-48">
-                                        <SelectValue placeholder="Filter status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Semua Status</SelectItem>
-                                        <SelectItem value="active">Aktif</SelectItem>
-                                        <SelectItem value="inactive">Tidak Aktif</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <h1 className="text-4xl font-bold tracking-tight lg:text-5xl">
+                                    Manajemen Pengguna
+                                </h1>
+                                <p className="text-lg text-white/90 max-w-2xl">
+                                    Kelola pengguna, peran, dan hak akses sistem BPS Riau dengan kontrol penuh dan keamanan terjamin
+                                </p>
                             </div>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                              
+                                {isSuperAdmin && (
+                                    <Button size="lg" className="bg-white text-primary hover:bg-white/90 shadow-lg" asChild>
+                                        <Link href="/users/create">
+                                            <Plus className="h-5 w-5 mr-2" />
+                                            Tambah Pengguna
+                                        </Link>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    {/* Background decoration */}
+                    <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10"></div>
+                    <div className="absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-white/5"></div>
+                </div>
 
-                            <div className="flex items-center border rounded-lg p-1">
-                                <Button
-                                    variant={viewMode === 'table' ? 'default' : 'ghost'}
-                                    size="sm"
-                                    onClick={() => setViewMode('table')}
-                                >
-                                    <List className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                                    size="sm"
-                                    onClick={() => setViewMode('grid')}
-                                >
-                                    <Grid3X3 className="h-4 w-4" />
-                                </Button>
+                {/* Enhanced Stats Cards with Professional Design */}
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+                    <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100/50"></div>
+                        <CardContent className="relative p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                                        Total Pengguna
+                                    </p>
+                                    <p className="text-3xl font-bold tracking-tight text-blue-800">
+                                        {statusCounts.total}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <TrendingUp className="h-4 w-4 text-emerald-600" />
+                                        <span className="text-sm font-medium text-emerald-600 ml-1">
+                                            Sistem Aktif
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
+                                        <Users className="h-8 w-8" />
+                                    </div>
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50"></div>
+                        <CardContent className="relative p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                                        Pengguna Aktif
+                                    </p>
+                                    <p className="text-3xl font-bold tracking-tight text-emerald-800">
+                                        {statusCounts.active}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <CheckCircle className="h-4 w-4 text-emerald-600" />
+                                        <span className="text-sm font-medium text-emerald-600 ml-1">
+                                            {((statusCounts.active / statusCounts.total) * 100).toFixed(1)}% aktif
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg">
+                                        <UserCheck className="h-8 w-8" />
+                                    </div>
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-red-100/50"></div>
+                        <CardContent className="relative p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                                        Tidak Aktif
+                                    </p>
+                                    <p className="text-3xl font-bold tracking-tight text-red-800">
+                                        {statusCounts.inactive}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <UserX className="h-4 w-4 text-red-600" />
+                                        <span className="text-sm font-medium text-red-600 ml-1">
+                                            Perlu perhatian
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="p-4 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg">
+                                        <UserX className="h-8 w-8" />
+                                    </div>
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-purple-100/50"></div>
+                        <CardContent className="relative p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                                        Administrator
+                                    </p>
+                                    <p className="text-3xl font-bold tracking-tight text-purple-800">
+                                        {statusCounts.admins}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <Crown className="h-4 w-4 text-purple-600" />
+                                        <span className="text-sm font-medium text-purple-600 ml-1">
+                                            Hak akses tinggi
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg">
+                                        <Shield className="h-8 w-8" />
+                                    </div>
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100/50"></div>
+                        <CardContent className="relative p-6">
+                            <div className="flex items-center justify-between space-x-4">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                                        Pengguna Biasa
+                                    </p>
+                                    <p className="text-3xl font-bold tracking-tight text-gray-800">
+                                        {statusCounts.users}
+                                    </p>
+                                    <div className="flex items-center mt-2">
+                                        <User className="h-4 w-4 text-gray-600" />
+                                        <span className="text-sm font-medium text-gray-600 ml-1">
+                                            Akses standar
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="p-4 rounded-2xl bg-gradient-to-br from-gray-500 to-gray-600 text-white shadow-lg">
+                                        <User className="h-8 w-8" />
+                                    </div>
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-gray-500 to-gray-600 blur opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Enhanced Filters Section */}
+                <Card className="border-0 shadow-lg">
+                    <CardContent className="p-6">
+                        <div className="space-y-4">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4 flex-1">
+                                    <div className="relative min-w-0 flex-1 max-w-md">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Cari nama, email, atau departemen..."
+                                            value={searchTerm}
+                                            onChange={(e) => {
+                                                setSearchTerm(e.target.value);
+                                                handleSearch(e.target.value);
+                                            }}
+                                            className="pl-9 h-11"
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <Select value={roleFilter} onValueChange={handleRoleFilter}>
+                                            <SelectTrigger className="w-44">
+                                                <SelectValue placeholder="Peran" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Semua Peran</SelectItem>
+                                                <SelectItem value="super-admin">Super Admin</SelectItem>
+                                                <SelectItem value="admin">Administrator</SelectItem>
+                                                <SelectItem value="pengguna">Pengguna</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select value={categoryFilter} onValueChange={handleCategoryFilter}>
+                                            <SelectTrigger className="w-36">
+                                                <SelectValue placeholder="Kategori" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Semua</SelectItem>
+                                                <SelectItem value="pegawai">Pegawai</SelectItem>
+                                                <SelectItem value="tamu">Tamu</SelectItem>
+                                                <SelectItem value="magang">Magang</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                                            <SelectTrigger className="w-36">
+                                                <SelectValue placeholder="Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Semua Status</SelectItem>
+                                                <SelectItem value="active">Aktif</SelectItem>
+                                                <SelectItem value="inactive">Tidak Aktif</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="text-sm text-muted-foreground">
+                                    Menampilkan {users.data.length} dari {users.total} pengguna
+                                </div>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Users List */}
-                {(users.data?.length || 0) === 0 ? (
-                    <Card>
+                {/* Enhanced Users List with Photo Support */}
+                <Card className="border-0 shadow-lg">
+                    <CardHeader className="border-b bg-muted/30">
+                        <CardTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5" />
+                            Daftar Pengguna Terdaftar
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                            Kelola semua pengguna sistem BPS Riau dengan kontrol akses berbasis peran
+                        </p>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-muted/50 border-b">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">
+                                            Foto & Pengguna
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">
+                                            Kontak & Departemen
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">
+                                            Peran & Kategori
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">
+                                            Status
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-sm font-medium text-muted-foreground">
+                                            Aksi
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {users.data.map((user) => (
+                                        <tr key={user.id} className="hover:bg-muted/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-4">
+                                                    <UserAvatar 
+                                                        user={user}
+                                                        size="lg"
+                                                        showStatusIndicator={true}
+                                                        showRoleIndicator={true}
+                                                    />
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-semibold truncate text-lg">{user.name}</p>
+                                                        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                                                        {user.avatar && (
+                                                            <div className="flex items-center gap-1 mt-1">
+                                                                <ImageIcon className="h-3 w-3 text-emerald-600" />
+                                                                <span className="text-xs text-emerald-600 font-medium">Foto Profil</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="space-y-2">
+                                                    {user.phone && (
+                                                        <div className="flex items-center text-sm">
+                                                            <Phone className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+                                                            <span className="truncate">{user.phone}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center text-sm">
+                                                        <Building className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+                                                        <span className="truncate">{user.department || 'Tidak ada departemen'}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="space-y-2">
+                                                    <Badge 
+                                                        variant="outline" 
+                                                        className={cn("border", getRoleColor(user.role))}
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            {getRoleIcon(user.role)}
+                                                            <span>{getRoleLabel(user.role)}</span>
+                                                        </div>
+                                                    </Badge>
+                                                    <Badge 
+                                                        variant="outline" 
+                                                        className={cn("border", getCategoryColor(user.category))}
+                                                    >
+                                                        {getCategoryLabel(user.category)}
+                                                    </Badge>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center space-x-3">
+                                                    <Switch
+                                                        checked={user.is_active}
+                                                        onCheckedChange={() => toggleUserStatus(user.id, user.is_active)}
+                                                        disabled={user.id === auth.user.id || (user.role === 'super-admin' && !isSuperAdmin)}
+                                                        className="data-[state=checked]:bg-emerald-600"
+                                                    />
+                                                    <Badge 
+                                                        variant={user.is_active ? "default" : "secondary"}
+                                                        className={user.is_active ? 
+                                                            "bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200" : 
+                                                            "bg-red-100 text-red-800 border-red-200"}
+                                                    >
+                                                        {user.is_active ? 'Aktif' : 'Nonaktif'}
+                                                    </Badge>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/users/${user.id}`}>
+                                                            <Eye className="h-4 w-4" />
+                                                        </Link>
+                                                    </Button>
+                                                    {(isSuperAdmin || (isAdmin && user.role !== 'super-admin')) && user.id !== auth.user.id && (
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <Link href={`/users/${user.id}/edit`}>
+                                                                <Edit className="h-4 w-4" />
+                                                            </Link>
+                                                        </Button>
+                                                    )}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="sm">
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem asChild>
+                                                                <Link href={`/users/${user.id}`}>
+                                                                    <Eye className="h-4 w-4 mr-2" />
+                                                                    Lihat Detail
+                                                                </Link>
+                                                            </DropdownMenuItem>
+                                                            {(isSuperAdmin || (isAdmin && user.role !== 'super-admin')) && user.id !== auth.user.id && (
+                                                                <DropdownMenuItem asChild>
+                                                                    <Link href={`/users/${user.id}/edit`}>
+                                                                        <Edit className="h-4 w-4 mr-2" />
+                                                                        Edit Pengguna
+                                                                    </Link>
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Empty State */}
+                {users.data.length === 0 && (
+                    <Card className="border-0 shadow-lg">
                         <CardContent className="p-12 text-center">
-                            <Users className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                {searchQuery ? 'Tidak ada pengguna ditemukan' : 'Belum ada pengguna'}
+                            <div className="relative mb-6">
+                                <ImageWithFallback 
+                                    src="https://images.unsplash.com/photo-1752170080773-fed7758395c3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBvZmZpY2UlMjB0ZWFtJTIwbWVldGluZ3xlbnwxfHx8fDE3NTg1MDMwNzB8MA&ixlib=rb-4.1.0&q=80&w=400"
+                                    alt="Professional team workspace"
+                                    className="w-32 h-32 object-cover rounded-2xl mx-auto shadow-lg"
+                                />
+                                <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/20 to-transparent"></div>
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2">
+                                Tidak ada pengguna ditemukan
                             </h3>
-                            <p className="text-gray-600 mb-6">
-                                {searchQuery 
-                                    ? `Tidak ada pengguna yang cocok dengan pencarian "${searchQuery}"`
-                                    : 'Tambahkan pengguna pertama untuk memulai'
+                            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                                {searchTerm || roleFilter !== 'all' || categoryFilter !== 'all' || statusFilter !== 'all'
+                                    ? 'Coba ubah filter pencarian Anda untuk menemukan pengguna yang sesuai'
+                                    : 'Belum ada pengguna yang ditambahkan ke sistem BPS Riau'
                                 }
                             </p>
-                            {!searchQuery && (
-                                <Button asChild>
+                            {isSuperAdmin && !searchTerm && roleFilter === 'all' && categoryFilter === 'all' && statusFilter === 'all' && (
+                                <Button size="lg" asChild>
                                     <Link href="/users/create">
-                                        <UserPlus className="h-4 w-4 mr-2" />
-                                        Tambah Pengguna
+                                        <Plus className="h-5 w-5 mr-2" />
+                                        Tambah Pengguna Pertama
                                     </Link>
                                 </Button>
                             )}
                         </CardContent>
                     </Card>
-                ) : viewMode === 'table' ? (
-                    <>
-                        <Card>
-                            <CardContent className="p-0">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Pengguna</TableHead>
-                                            <TableHead>Peran</TableHead>
-                                            <TableHead>Kategori</TableHead>
-                                            <TableHead>Kontak</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Bergabung</TableHead>
-                                            <TableHead className="text-right">Aksi</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {users.data?.map((user) => {
-                                            const RoleIcon = getRoleIcon(user.role);
-                                            return (
-                                                <TableRow key={user.id}>
-                                                    <TableCell>
-                                                        <div className="flex items-center space-x-3">
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarFallback className="bg-blue-100 text-blue-700">
-                                                                    {getUserInitials(user.name)}
-                                                                </AvatarFallback>
-                                                            </Avatar>
-                                                            <div>
-                                                                <p className="font-medium text-gray-900">{user.name}</p>
-                                                                <p className="text-sm text-gray-500">{user.email}</p>
-                                                            </div>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge className={cn("border", getRoleColor(user.role))}>
-                                                            <RoleIcon className="h-3 w-3 mr-1" />
-                                                            {getStatusLabel(user.role, 'role')}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant="outline" className={cn("border", getCategoryColor(user.category))}>
-                                                            {getStatusLabel(user.category, 'category')}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="text-sm">
-                                                            <p className="text-gray-900">{user.phone || '-'}</p>
-                                                            <p className="text-gray-500">{user.department || '-'}</p>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center space-x-2">
-                                                            <Switch
-                                                                checked={user.is_active}
-                                                                onCheckedChange={() => handleToggleUserStatus(user.id, user.is_active)}
-                                                                disabled={user.id === auth.user.id}
-                                                            />
-                                                            <span className={cn(
-                                                                "text-sm",
-                                                                user.is_active ? "text-emerald-600" : "text-red-600"
-                                                            )}>
-                                                                {user.is_active ? 'Aktif' : 'Tidak Aktif'}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <span className="text-sm text-gray-500">
-                                                            {formatDateTime(user.created_at, { 
-                                                                day: 'numeric', 
-                                                                month: 'short', 
-                                                                year: 'numeric' 
-                                                            })}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" size="sm">
-                                                                    <MoreVertical className="h-4 w-4" />
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/users/${user.id}`}>
-                                                                        <Eye className="h-4 w-4 mr-2" />
-                                                                        Detail
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem asChild>
-                                                                    <Link href={`/users/${user.id}/edit`}>
-                                                                        <Edit className="h-4 w-4 mr-2" />
-                                                                        Edit
-                                                                    </Link>
-                                                                </DropdownMenuItem>
-                                                                {user.id !== auth.user.id && (
-                                                                    <>
-                                                                        <DropdownMenuSeparator />
-                                                                        <AlertDialog>
-                                                                            <AlertDialogTrigger asChild>
-                                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                                    <Trash2 className="h-4 w-4 mr-2" />
-                                                                                    Hapus
-                                                                                </DropdownMenuItem>
-                                                                            </AlertDialogTrigger>
-                                                                            <AlertDialogContent>
-                                                                                <AlertDialogHeader>
-                                                                                    <AlertDialogTitle>Hapus Pengguna</AlertDialogTitle>
-                                                                                    <AlertDialogDescription>
-                                                                                        Apakah Anda yakin ingin menghapus pengguna {user.name}? 
-                                                                                        Tindakan ini tidak dapat dibatalkan.
-                                                                                    </AlertDialogDescription>
-                                                                                </AlertDialogHeader>
-                                                                                <AlertDialogFooter>
-                                                                                    <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                                    <AlertDialogAction
-                                                                                        onClick={() => handleDeleteUser(user.id)}
-                                                                                        className="bg-red-600 hover:bg-red-700"
-                                                                                    >
-                                                                                        Hapus
-                                                                                    </AlertDialogAction>
-                                                                                </AlertDialogFooter>
-                                                                            </AlertDialogContent>
-                                                                        </AlertDialog>
-                                                                    </>
-                                                                )}
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
+                )}
 
-                        {/* Pagination for Table View */}
-                        {users.last_page > 1 && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-sm text-gray-700">
-                                            Menampilkan {users.from} - {users.to} dari {users.total} pengguna
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            {users.links?.map((link, index) => (
-                                                <Button
-                                                    key={index}
-                                                    variant={link.active ? "default" : "outline"}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        if (link.url) {
-                                                            const url = new URL(link.url);
-                                                            const page = url.searchParams.get('page');
-                                                            if (page) {
-                                                                handlePageChange(parseInt(page));
-                                                            }
-                                                        }
-                                                    }}
-                                                    disabled={!link.url}
-                                                    className={cn(
-                                                        "min-w-[40px]",
-                                                        link.active && "bg-primary text-primary-foreground"
-                                                    )}
-                                                >
-                                                    {link.label === '&laquo; Previous' ? (
-                                                        <ChevronLeft className="h-4 w-4" />
-                                                    ) : link.label === 'Next &raquo;' ? (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    ) : (
-                                                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                    )}
-                                                </Button>
-                                            ))}
-                                        </div>
+                {/* Enhanced Pagination */}
+                {users.data.length > 0 && users.last_page > 1 && (
+                    <Card className="border-0 shadow-lg">
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">
+                                    Menampilkan <span className="font-medium">{users.from}</span> sampai <span className="font-medium">{users.to}</span> dari <span className="font-medium">{users.total}</span> pengguna
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(users.current_page - 1)}
+                                        disabled={users.current_page <= 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <div className="flex items-center gap-1 text-sm">
+                                        <span>Halaman</span>
+                                        <span className="font-medium">{users.current_page}</span>
+                                        <span>dari</span>
+                                        <span className="font-medium">{users.last_page}</span>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {users.data?.map((user) => {
-                                const RoleIcon = getRoleIcon(user.role);
-                                return (
-                                    <Card key={user.id} className="overflow-hidden smooth-hover">
-                                        <CardContent className="p-6">
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex items-center space-x-3">
-                                                    <Avatar className="h-12 w-12">
-                                                        <AvatarFallback className="bg-blue-100 text-blue-700">
-                                                            {getUserInitials(user.name)}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold text-gray-900">
-                                                            {user.name}
-                                                        </h3>
-                                                        <p className="text-sm text-gray-600">{user.email}</p>
-                                                    </div>
-                                                </div>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="sm">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem asChild>
-                                                            <Link href={`/users/${user.id}`}>
-                                                                <Eye className="h-4 w-4 mr-2" />
-                                                                Detail
-                                                            </Link>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem asChild>
-                                                            <Link href={`/users/${user.id}/edit`}>
-                                                                <Edit className="h-4 w-4 mr-2" />
-                                                                Edit
-                                                            </Link>
-                                                        </DropdownMenuItem>
-                                                        {user.id !== auth.user.id && (
-                                                            <>
-                                                                <DropdownMenuSeparator />
-                                                                <AlertDialog>
-                                                                    <AlertDialogTrigger asChild>
-                                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                            <Trash2 className="h-4 w-4 mr-2" />
-                                                                            Hapus
-                                                                        </DropdownMenuItem>
-                                                                    </AlertDialogTrigger>
-                                                                    <AlertDialogContent>
-                                                                        <AlertDialogHeader>
-                                                                            <AlertDialogTitle>Hapus Pengguna</AlertDialogTitle>
-                                                                            <AlertDialogDescription>
-                                                                                Apakah Anda yakin ingin menghapus pengguna {user.name}? 
-                                                                                Tindakan ini tidak dapat dibatalkan.
-                                                                            </AlertDialogDescription>
-                                                                        </AlertDialogHeader>
-                                                                        <AlertDialogFooter>
-                                                                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                                            <AlertDialogAction
-                                                                                onClick={() => handleDeleteUser(user.id)}
-                                                                                className="bg-red-600 hover:bg-red-700"
-                                                                            >
-                                                                                Hapus
-                                                                            </AlertDialogAction>
-                                                                        </AlertDialogFooter>
-                                                                    </AlertDialogContent>
-                                                                </AlertDialog>
-                                                            </>
-                                                        )}
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-
-                                            <div className="space-y-3 mb-4">
-                                                <div className="flex items-center justify-between">
-                                                    <Badge className={cn("border", getRoleColor(user.role))}>
-                                                        <RoleIcon className="h-3 w-3 mr-1" />
-                                                        {getStatusLabel(user.role, 'role')}
-                                                    </Badge>
-                                                    <Badge variant="outline" className={cn("border", getCategoryColor(user.category))}>
-                                                        {getStatusLabel(user.category, 'category')}
-                                                    </Badge>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <Phone className="h-4 w-4 mr-2" />
-                                                        {user.phone || 'Tidak ada nomor telepon'}
-                                                    </div>
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <Building className="h-4 w-4 mr-2" />
-                                                        {user.department || 'Tidak ada departemen'}
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center justify-between pt-2 border-t">
-                                                    <div className="flex items-center space-x-2">
-                                                        <Switch
-                                                            checked={user.is_active}
-                                                            onCheckedChange={() => handleToggleUserStatus(user.id, user.is_active)}
-                                                            disabled={user.id === auth.user.id}
-                                                        />
-                                                        <span className={cn(
-                                                            "text-sm",
-                                                            user.is_active ? "text-emerald-600" : "text-red-600"
-                                                        )}>
-                                                            {user.is_active ? 'Aktif' : 'Tidak Aktif'}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-xs text-gray-500">
-                                                        {formatDateTime(user.created_at, { 
-                                                            day: 'numeric', 
-                                                            month: 'short' 
-                                                        })}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex space-x-2">
-                                                <Button asChild variant="outline" size="sm" className="flex-1">
-                                                    <Link href={`/users/${user.id}`}>
-                                                        <Eye className="h-4 w-4 mr-2" />
-                                                        Detail
-                                                    </Link>
-                                                </Button>
-                                                <Button asChild size="sm" className="flex-1">
-                                                    <Link href={`/users/${user.id}/edit`}>
-                                                        <Edit className="h-4 w-4 mr-2" />
-                                                        Edit
-                                                    </Link>
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-
-                        {/* Pagination for Grid View */}
-                        {users.last_page > 1 && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-sm text-gray-700">
-                                            Menampilkan {users.from} - {users.to} dari {users.total} pengguna
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            {users.links?.map((link, index) => (
-                                                <Button
-                                                    key={index}
-                                                    variant={link.active ? "default" : "outline"}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        if (link.url) {
-                                                            const url = new URL(link.url);
-                                                            const page = url.searchParams.get('page');
-                                                            if (page) {
-                                                                handlePageChange(parseInt(page));
-                                                            }
-                                                        }
-                                                    }}
-                                                    disabled={!link.url}
-                                                    className={cn(
-                                                        "min-w-[40px]",
-                                                        link.active && "bg-primary text-primary-foreground"
-                                                    )}
-                                                >
-                                                    {link.label === '&laquo; Previous' ? (
-                                                        <ChevronLeft className="h-4 w-4" />
-                                                    ) : link.label === 'Next &raquo;' ? (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    ) : (
-                                                        <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                    )}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(users.current_page + 1)}
+                                        disabled={users.current_page >= users.last_page}
+                                    >
+                                        Selanjutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </AuthenticatedLayout>

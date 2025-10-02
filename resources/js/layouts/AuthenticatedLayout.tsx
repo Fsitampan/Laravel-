@@ -2,7 +2,7 @@ import { useState, PropsWithChildren, ReactNode } from "react";
 import { Link, usePage, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -183,24 +183,30 @@ export default function AuthenticatedLayout({
             <DropdownMenuTrigger asChild>
               <div className="flex items-center p-3 bg-white rounded-lg shadow-sm border cursor-pointer hover:bg-gray-50">
                 <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-medium">
-                    {getUserInitials(user.name)}
-                  </AvatarFallback>
+                    {/* Tambahkan AvatarImage di sini */}
+                    {user.avatar && (
+                       <AvatarImage src={user.avatar} alt={user.name} />
+                    )}
+                    
+                    {/* AvatarFallback akan ditampilkan jika tidak ada foto */}
+                    <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-medium">
+                        {getUserInitials(user.name)}
+                    </AvatarFallback>
                 </Avatar>
                 <div className="ml-3 flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {user.name}
-                  </p>
-                  <div className="flex items-center mt-1">
-                    <Badge
-                      variant="outline"
-                      className={cn("text-xs", getRoleColor(user.role))}
-                    >
-                      {getRoleLabel(user.role)}
-                    </Badge>
-                  </div>
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                        {user.name}
+                    </p>
+                    <div className="flex items-center mt-1">
+                        <Badge
+                            variant="outline"
+                            className={cn("text-xs", getRoleColor(user.role))}
+                        >
+                            {getRoleLabel(user.role)}
+                        </Badge>
+                    </div>
                 </div>
-              </div>
+            </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuLabel>Profil</DropdownMenuLabel>

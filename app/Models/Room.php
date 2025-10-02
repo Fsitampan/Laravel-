@@ -15,18 +15,17 @@ class Room extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'code', 'description', 'capacity', 'status', 
-        'location', 'facilities', 'notes', 'created_by', 'updated_by', 'image'
+        'name', 'code', 'description', 'capacity', 'status',
+        'location', 'facilities', 'notes', 'created_by', 'updated_by',
+        'image',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'status' => RoomStatus::class,
-            'facilities' => 'array',
-            'capacity' => 'integer',
-        ];
-    }
+    // Correct casting property
+    protected $casts = [
+        'status' => RoomStatus::class,
+        'facilities' => 'array',
+        'capacity' => 'integer',
+    ];
 
     // Auto-generate full_name when saving
     protected static function boot()
@@ -34,6 +33,7 @@ class Room extends Model
         parent::boot();
 
         static::saving(function ($room) {
+            // Pastikan code/name ada sebelum membuat full_name
             $room->full_name = "Ruang {$room->code} - {$room->name}";
         });
     }
@@ -44,20 +44,24 @@ class Room extends Model
         return $this->hasMany(Borrowing::class);
     }
 
-    // Current active borrowing - should return single instance, not collection
-    public function currentBorrowing()
+    /**
+     * currentBorrowing:
+     * - kita ambil borrowing terakhir yang relevan untuk ditampilkan di UI.
+     * - gunakan whereIn agar kompatibel jika Anda memakai 'approved' atau 'active' sebagai indikator.
+     */
+    public function currentBorrowing(): HasOne
     {
         return $this->hasOne(Borrowing::class)
-            ->where('status', 'active')
-            ->latest('created_at'); // Use created_at as fallback until migration runs
+            ->whereIn('status', ['approved', 'active'])
+            ->latestOfMany();
     }
 
-    // All current borrowings (if multiple needed) - returns collection
+    // Jika Anda butuh daftar borrowings yang sedang aktif
     public function currentBorrowings(): HasMany
     {
         return $this->hasMany(Borrowing::class)
-            ->where('status', 'active')
-            ->latest('created_at'); // Use created_at as fallback until migration runs
+            ->whereIn('status', ['approved', 'active'])
+            ->latest('created_at');
     }
 
     public function equipment(): HasMany
@@ -97,6 +101,29 @@ class Room extends Model
         );
     }
 
+     /**
+     * Helper untuk URL gambar yang konsisten.
+     * @return string
+     */
+    public function getImageUrlAttribute(): string
+    {
+        // Prioritas 1: Jika ada gambar lokal yang di-upload.
+        // Kita akses nilai asli dari kolom 'image'
+        if (!empty($this->attributes['image'])) {
+            // Pastikan Anda sudah menjalankan `php artisan storage:link`
+            return asset('storage/' . $this->attributes['image']);
+        }
+
+        // Prioritas 2: Jika ada link gambar eksternal yang diisi manual.
+        // Kita akses nilai asli dari kolom 'image_url' untuk menghindari rekursi
+        if (!empty($this->attributes['image_url'])) {
+            return $this->attributes['image_url'];
+        }
+
+        // Prioritas 3 (Fallback): Jika keduanya tidak ada, gunakan URL default.
+        return 'https://placehold.co/800x600/e2e8f0/7c3aed?text=Ruang%20' . urlencode($this->name);
+    }
+
     // Helper methods
     public function isAvailable(): bool
     {
@@ -115,12 +142,13 @@ class Room extends Model
 
     public function hasActiveBorrowing(): bool
     {
-        return $this->borrowings()->where('status', 'active')->exists();
+        // mempertimbangkan approved/active sesuai currentBorrowing
+        return $this->borrowings()->whereIn('status', ['approved', 'active'])->exists();
     }
 
     public function getActiveBorrowing()
     {
-        return $this->borrowings()->where('status', 'active')->with('user')->first();
+        return $this->borrowings()->whereIn('status', ['approved', 'active'])->with('user')->first();
     }
 
     // Scopes
@@ -139,18 +167,11 @@ class Room extends Model
         return $query->where('status', RoomStatus::PEMELIHARAAN);
     }
 
-  public function getImageUrlAttribute()
-{
-    return $this->image 
-        ? asset('storage/Rooms/' . $this->image)
-        : asset('images/default-room.jpg'); // fallback kalau kosong
-}
-
-
-
     // For Inertia.js sharing
     public function toInertiaArray(): array
     {
+        $current = $this->currentBorrowing;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -159,9 +180,9 @@ class Room extends Model
             'description' => $this->description,
             'capacity' => $this->capacity,
             'location' => $this->location,
-            'status' => $this->status->value,
-            'status_label' => $this->status->label(),
-            'status_color' => $this->status->color(),
+            'status' => is_object($this->status) && method_exists($this->status, 'value') ? $this->status->value : $this->status,
+            'status_label' => is_object($this->status) ? $this->status->label() : $this->status,
+            'status_color' => is_object($this->status) ? $this->status->color() : null,
             'facilities' => $this->facilities,
             'notes' => $this->notes,
             'is_available' => $this->isAvailable(),
@@ -171,7 +192,21 @@ class Room extends Model
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'image' => $this->image,
-            'image_url' => $this->image_url,
+            'image_url' => $this->image_url ?? $this->image_url, // tetap kirim apa adanya
+            // kirim image_url computed agar front-end mudah pakai
+            'computed_image_url' => $this->image_url ?? $this->getImageUrlAttribute(),
+
+            // Tambahan: informasi current borrowing agar UI bisa menampilkan nama peminjam
+            'current_borrowing' => $current ? [
+                'id' => $current->id,
+                'borrower_name' => $current->borrower_name,
+                'user_name' => $current->user?->name ?? null,
+                'borrow_date' => $current->borrow_date ?? null,
+                'start_time' => $current->start_time ?? null,
+                'end_time' => $current->end_time ?? null,
+                'purpose' => $current->purpose ?? null,
+                'status' => $current->status ?? null,
+            ] : null,
         ];
     }
 }

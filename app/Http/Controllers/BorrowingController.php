@@ -15,12 +15,14 @@ class BorrowingController extends Controller
     /**
      * Tampilkan daftar peminjaman.
      */
-    public function index(Request $request): Response
+    public function Index(Request $request): Response
     {
-        $user = Auth::user();
+    $user = Auth::user();
 
-        $query = Borrowing::with(['room', 'user', 'creator'])
-            ->forUser($user);
+    $viewAll = $request->get('viewAll', false); // bisa dikirim dari frontend
+    $query = Borrowing::with(['room', 'user', 'creator'])
+    ->forUser($user, $viewAll);
+
 
         // Filter pencarian
         if ($request->search) {
@@ -80,38 +82,36 @@ class BorrowingController extends Controller
     /**
      * Simpan peminjaman baru.
      */
-    public function store(Request $request): RedirectResponse
-    {
-        $user = Auth::user();
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'room_id'              => 'required|exists:rooms,id',
+        'borrower_name'        => 'required|string|max:255',
+        'borrower_email'       => 'nullable|email|max:255',
+        'borrower_phone'       => 'required|string|max:20',
+        'borrower_identification' => 'nullable|string|max:50',
+        'borrower_category'    => 'required|in:pegawai,tamu,anak-magang',
+        'borrower_department'  => 'nullable|string',
+        'borrower_institution' => 'nullable|string',
+        'borrow_date'          => 'required|date',
+        'start_time'           => 'required|date_format:H:i',
+        'end_time'             => 'required|date_format:H:i|after:start_time',
+        'return_date'          => 'nullable|date|after_or_equal:borrow_date',
+        'purpose'              => 'required|string|max:500',
+        'participant_count'    => 'required|integer|min:1',
+        'equipment_needed'     => 'nullable|array',
+        'notes'                => 'nullable|string|max:500',
+    ]);
 
-        $validated = $request->validate([
-            'room_id'               => 'required|exists:rooms,id',
-            'borrower_name'         => 'required|string|max:255',
-            'borrower_email'        => 'nullable|email|max:255',
-            'borrower_phone'        => 'nullable|string|max:30',
-            'borrower_identification' => 'nullable|string|max:50',
-            'borrower_category'     => 'required|in:pegawai,tamu,anak-magang',
-            'borrower_department'   => 'nullable|string|max:255',
-            'borrow_date'           => 'required|date',
-            'start_time'            => 'required|date_format:H:i',
-            'end_time'              => 'required|date_format:H:i|after:start_time',
-            'return_date'           => 'nullable|date|after_or_equal:borrow_date',
-            'actual_return_date'    => 'nullable|date',
-            'purpose'               => 'required|string|max:500',
-            'notes'                 => 'nullable|string|max:500',
-        ]);
+    $validated['user_id'] = auth()->id();
+    $validated['created_by'] = auth()->id();
 
-        Borrowing::create([
-            ...$validated,
-            'user_id'    => $user->id,
-            'created_by' => $user->id,
-            'status'     => 'pending',
-        ]);
+    Borrowing::create($validated);
 
-        return redirect()
-            ->route('Borrowings.Index')
-            ->with('success', 'Peminjaman berhasil diajukan.');
-    }
+    return redirect()->route('Borrowings.Index')
+        ->with('success', 'Peminjaman berhasil dibuat.');
+}
+
 
     /**
      * Form edit peminjaman.
@@ -169,5 +169,17 @@ class BorrowingController extends Controller
         return redirect()
             ->route('Borrowings.Index')
             ->with('success', 'Peminjaman berhasil dihapus.');
+    }
+
+        public function show(Borrowing $borrowing): Response
+    {
+        $this->authorize('view', $borrowing);
+
+        $borrowing->load(['room', 'user', 'approver', 'creator', 'history.performer']);
+
+        return Inertia::render('Borrowings/Show', [
+            'borrowing' => $borrowing->toInertiaArray(),
+            'history' => $borrowing->history->map(fn($history) => $history->toInertiaArray()),
+        ]);
     }
 }

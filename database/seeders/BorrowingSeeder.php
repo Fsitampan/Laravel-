@@ -9,9 +9,6 @@ use App\Models\BorrowingHistory;
 
 class BorrowingSeeder extends Seeder
 {
-    /**
-     * Seed the BPS Riau Borrowings
-     */
     public function run(): void
     {
         // Clear existing borrowings and history
@@ -19,16 +16,17 @@ class BorrowingSeeder extends Seeder
         BorrowingHistory::truncate();
 
         $borrowings = [
-            // Active/Current Borrowings
+            // Active Borrowing
             [
-                'room_id' => 3, // Room C (Seminar)
-                'user_id' => 5, // Andi Pratama
+                'room_id' => 3,
+                'user_id' => 5,
                 'borrower_name' => 'Andi Pratama, S.ST',
                 'borrower_email' => 'andi.pratama@bps.go.id',
                 'borrower_phone' => '0761-21355',
                 'borrower_identification' => '1471050101800001',
                 'borrower_category' => 'pegawai',
                 'borrower_department' => 'Statistik Produksi',
+                'borrower_institution' => 'BPS Provinsi Riau',
                 'borrow_date' => Carbon::now()->format('Y-m-d'),
                 'start_time' => '08:00',
                 'end_time' => '12:00',
@@ -37,112 +35,52 @@ class BorrowingSeeder extends Seeder
                 'status' => 'active',
                 'approved_by' => 2,
                 'approved_at' => Carbon::now()->subHours(3),
-                'notes' => 'Mohon disiapkan microphone wireless dan sound system untuk presenter eksternal',
+                'notes' => 'Mohon disiapkan microphone wireless dan sound system',
                 'created_by' => 5,
+                'participant_count' => 50,
+                'equipment_needed' => ['projector', 'sound system', 'microphone'],
+                'is_recurring' => false,
+                'recurring_pattern' => null,
+                'recurring_end_date' => null,
             ],
-            
-            // Pending Approvals (More data for testing)
+
+            // Pending Approval (Recurring Example)
             [
-                'room_id' => 1, // Room A (Kepala BPS)
-                'user_id' => 9, // Prof. Hendri (Guest)
+                'room_id' => 1,
+                'user_id' => 9,
                 'borrower_name' => 'Prof. Dr. Hendri Nelawan',
                 'borrower_email' => 'hendri.nelawan@unri.ac.id',
                 'borrower_phone' => '0761-567890',
                 'borrower_identification' => '1471050201750001',
                 'borrower_category' => 'tamu',
                 'borrower_department' => 'Universitas Riau - Fakultas Ekonomi',
+                'borrower_institution' => 'Universitas Riau',
                 'borrow_date' => Carbon::now()->addDays(3)->format('Y-m-d'),
                 'start_time' => '10:00',
                 'end_time' => '12:00',
                 'return_date' => Carbon::now()->addDays(3)->format('Y-m-d'),
                 'purpose' => 'Diskusi Kerjasama Penelitian Ekonomi Regional Riau',
                 'status' => 'pending',
-                'notes' => 'Meeting dengan Kepala BPS terkait proposal penelitian bersama tentang PDRB Riau',
+                'notes' => 'Meeting dengan Kepala BPS terkait penelitian',
                 'created_by' => 9,
+                'participant_count' => 20,
+                'equipment_needed' => ['whiteboard', 'LCD screen'],
+                'is_recurring' => true,
+                'recurring_pattern' => 'weekly',
+                'recurring_end_date' => Carbon::now()->addWeeks(4)->format('Y-m-d'),
             ],
+
+            // Completed Borrowing
             [
-                'room_id' => 2, // Room B (Koordinasi)
-                'user_id' => 6, // Sari Wahyuni
-                'borrower_name' => 'Sari Wahyuni, S.Si',
-                'borrower_email' => 'sari.wahyuni@bps.go.id',
-                'borrower_phone' => '0761-21356',
-                'borrower_identification' => '1471054201850001',
-                'borrower_category' => 'pegawai',
-                'borrower_department' => 'Statistik Distribusi',
-                'borrow_date' => Carbon::now()->addDays(1)->format('Y-m-d'),
-                'start_time' => '14:00',
-                'end_time' => '16:00',
-                'return_date' => Carbon::now()->addDays(1)->format('Y-m-d'),
-                'purpose' => 'Rapat Koordinasi Persiapan Survei Harga Konsumen',
-                'status' => 'pending',
-                'notes' => 'Koordinasi dengan tim lapangan untuk persiapan survei bulan depan',
-                'created_by' => 6,
-            ],
-            [
-                'room_id' => 4, // Room D (Diskusi Tim)
-                'user_id' => 11, // Fajar (Intern)
-                'borrower_name' => 'Fajar Ramadhan',
-                'borrower_email' => 'fajar.ramadhan@student.unri.ac.id',
-                'borrower_phone' => '0812-3456-7890',
-                'borrower_identification' => '1471051101990001',
-                'borrower_category' => 'anak-magang',
-                'borrower_department' => 'Magang - Statistik Sosial',
-                'borrow_date' => Carbon::now()->addDays(2)->format('Y-m-d'),
-                'start_time' => '09:00',
-                'end_time' => '11:00',
-                'return_date' => Carbon::now()->addDays(2)->format('Y-m-d'),
-                'purpose' => 'Diskusi Kelompok Project Penelitian Kemiskinan',
-                'status' => 'pending',
-                'notes' => 'Diskusi dengan supervisor dan mentor magang',
-                'created_by' => 11,
-            ],
-            [
-                'room_id' => 6, // Room F (Multiguna)
-                'user_id' => 10, // Dr. Ratna (Guest)
-                'borrower_name' => 'Dr. Ratna Sari Dewi',
-                'borrower_email' => 'ratna.sari@bappeda.riau.go.id',
-                'borrower_phone' => '0761-123456',
-                'borrower_identification' => '1471054201780001',
-                'borrower_category' => 'tamu',
-                'borrower_department' => 'Bappeda Provinsi Riau',
-                'borrow_date' => Carbon::now()->addDays(5)->format('Y-m-d'),
-                'start_time' => '13:00',
-                'end_time' => '17:00',
-                'return_date' => Carbon::now()->addDays(5)->format('Y-m-d'),
-                'purpose' => 'Workshop Analisis Data RPJMD Provinsi Riau',
-                'status' => 'pending',
-                'notes' => 'Workshop untuk tim Bappeda dalam analisis data statistik untuk RPJMD',
-                'created_by' => 10,
-            ],
-            [
-                'room_id' => 2, // Room B (Koordinasi)
-                'user_id' => 8, // Dewi (Employee)
-                'borrower_name' => 'Dewi Purnama Sari, S.E',
-                'borrower_email' => 'dewi.purnama@bps.go.id',
-                'borrower_phone' => '0761-21358',
-                'borrower_identification' => '1471054201800001',
-                'borrower_category' => 'pegawai',
-                'borrower_department' => 'Tata Usaha',
-                'borrow_date' => Carbon::now()->addWeek()->format('Y-m-d'),
-                'start_time' => '08:30',
-                'end_time' => '10:30',
-                'return_date' => Carbon::now()->addWeek()->format('Y-m-d'),
-                'purpose' => 'Rapat Evaluasi Kinerja Semester I',
-                'status' => 'pending',
-                'notes' => 'Rapat internal evaluasi dan planning semester mendatang',
-                'created_by' => 8,
-            ],
-            
-            // Completed Borrowings (Recent History)
-            [
-                'room_id' => 4, // Room D (Diskusi Tim)
-                'user_id' => 7, // Muhammad Rizky
+                'room_id' => 4,
+                'user_id' => 7,
                 'borrower_name' => 'Muhammad Rizky, A.Md',
                 'borrower_email' => 'rizky.muhammad@bps.go.id',
                 'borrower_phone' => '0761-21357',
                 'borrower_identification' => '1471051101900001',
                 'borrower_category' => 'pegawai',
                 'borrower_department' => 'Neraca Wilayah dan Analisis Statistik',
+                'borrower_institution' => 'BPS Provinsi Riau',
                 'borrow_date' => Carbon::yesterday()->format('Y-m-d'),
                 'start_time' => '09:00',
                 'end_time' => '12:00',
@@ -152,41 +90,26 @@ class BorrowingSeeder extends Seeder
                 'status' => 'completed',
                 'approved_by' => 3,
                 'approved_at' => Carbon::yesterday()->subDay()->setTime(16, 0),
-                'notes' => 'Diskusi berjalan lancar, terima kasih atas fasilitasnya',
+                'notes' => 'Diskusi berjalan lancar',
                 'created_by' => 7,
+                'participant_count' => 15,
+                'equipment_needed' => ['projector'],
+                'is_recurring' => false,
+                'recurring_pattern' => null,
+                'recurring_end_date' => null,
             ],
+
+            // Rejected Borrowing
             [
-                'room_id' => 6, // Room F (Multiguna)
-                'user_id' => 11, // Fajar (Intern)
-                'borrower_name' => 'Fajar Ramadhan',
-                'borrower_email' => 'fajar.ramadhan@student.unri.ac.id',
-                'borrower_phone' => '0812-3456-7890',
-                'borrower_identification' => '1471051101990001',
-                'borrower_category' => 'anak-magang',
-                'borrower_department' => 'Magang - Statistik Sosial',
-                'borrow_date' => Carbon::now()->subDays(3)->format('Y-m-d'),
-                'start_time' => '13:00',
-                'end_time' => '15:00',
-                'return_date' => Carbon::now()->subDays(3)->format('Y-m-d'),
-                'actual_return_date' => Carbon::now()->subDays(3)->setTime(15, 0),
-                'purpose' => 'Presentasi Hasil Magang dan Penelitian Tugas Akhir',
-                'status' => 'completed',
-                'approved_by' => 4,
-                'approved_at' => Carbon::now()->subDays(4)->setTime(10, 0),
-                'notes' => 'Presentasi hasil penelitian tentang kemiskinan di Riau',
-                'created_by' => 11,
-            ],
-            
-            // Rejected Booking
-            [
-                'room_id' => 1, // Room A (Kepala BPS)
-                'user_id' => 12, // Novi (Intern)
+                'room_id' => 1,
+                'user_id' => 12,
                 'borrower_name' => 'Novi Oktavia',
                 'borrower_email' => 'novi.oktavia@student.uin-suska.ac.id',
                 'borrower_phone' => '0813-4567-8901',
                 'borrower_identification' => '1471054201990001',
                 'borrower_category' => 'anak-magang',
                 'borrower_department' => 'Magang - IPDS',
+                'borrower_institution' => 'UIN Suska Riau',
                 'borrow_date' => Carbon::now()->subDays(2)->format('Y-m-d'),
                 'start_time' => '10:00',
                 'end_time' => '12:00',
@@ -195,9 +118,14 @@ class BorrowingSeeder extends Seeder
                 'status' => 'rejected',
                 'approved_by' => 2,
                 'approved_at' => Carbon::now()->subDays(3)->setTime(14, 0),
-                'rejection_reason' => 'Ruang A dikhususkan untuk meeting pimpinan dan tamu VIP. Silakan gunakan ruang lain yang tersedia.',
-                'notes' => 'Mohon penggunaan ruang yang sesuai dengan keperluan',
+                'rejection_reason' => 'Ruang A khusus untuk pimpinan dan tamu VIP',
+                'notes' => 'Silakan gunakan ruang lain yang tersedia',
                 'created_by' => 12,
+                'participant_count' => 10,
+                'equipment_needed' => ['laptop', 'proyektor'],
+                'is_recurring' => false,
+                'recurring_pattern' => null,
+                'recurring_end_date' => null,
             ],
         ];
 
@@ -206,8 +134,6 @@ class BorrowingSeeder extends Seeder
             $borrowingData['updated_at'] = now();
             
             $borrowing = Borrowing::create($borrowingData);
-            
-            // Create borrowing history
             $this->createBorrowingHistory($borrowing);
         }
 
@@ -217,8 +143,7 @@ class BorrowingSeeder extends Seeder
     private function createBorrowingHistory($borrowing): void
     {
         $histories = [];
-        
-        // Created history
+
         $histories[] = [
             'borrowing_id' => $borrowing->id,
             'action' => 'created',
@@ -229,14 +154,13 @@ class BorrowingSeeder extends Seeder
             'performed_at' => $borrowing->created_at,
         ];
 
-        // Status changes based on current status
         if (in_array($borrowing->status, ['approved', 'active', 'completed', 'rejected'])) {
             $histories[] = [
                 'borrowing_id' => $borrowing->id,
                 'action' => $borrowing->status === 'rejected' ? 'rejected' : 'approved',
                 'old_status' => 'pending',
                 'new_status' => $borrowing->status === 'rejected' ? 'rejected' : 'approved',
-                'comment' => $borrowing->status === 'rejected' 
+                'comment' => $borrowing->status === 'rejected'
                     ? 'Peminjaman ditolak: ' . $borrowing->rejection_reason
                     : 'Peminjaman disetujui',
                 'performed_by' => $borrowing->approved_by,

@@ -31,4 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
-    })->create();
+    })
+     ->withSchedule(function (Schedule $schedule) { 
+        $schedule->command('borrowings:update-status')->everyMinute();
+    })
+    ->create();

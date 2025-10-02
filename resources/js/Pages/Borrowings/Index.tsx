@@ -54,6 +54,8 @@ const getRoomImage = (roomName: string): string => {
 export default function BorrowingsIndex({ auth, borrowings, filters }: BorrowingsPageProps) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
+    const [viewAll, setViewAll] = useState(filters.viewAll ? "all" : "mine");
+
 
     const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
 
@@ -88,6 +90,18 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
             preserveState: true,
             replace: true 
         });
+    };
+
+    const handleViewFilter = (mode: "mine" | "all") => {
+    setViewAll(mode);
+    router.get('/Borrowings', { 
+        ...filters, 
+        viewAll: mode === "all" ? 1 : 0,
+        page: 1 
+    }, { 
+        preserveState: true,
+        replace: true 
+    });
     };
 
 
@@ -294,19 +308,31 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                                 </div>
                             </div>
                             <div className="flex items-center space-x-2">
+                               {/* Filter View: Peminjaman Saya / Semua */}
+                                <Select value={viewAll} onValueChange={handleViewFilter}>
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="Tampilan Data" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="mine">Peminjaman Saya</SelectItem>
+                                    <SelectItem value="all">Semua Peminjaman</SelectItem>
+                                </SelectContent>
+                                </Select>
+
+                                {/* Filter Status */}
                                 <Select value={statusFilter} onValueChange={handleStatusFilter}>
-                                    <SelectTrigger className="w-48">
-                                        <SelectValue placeholder="Filter Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Semua Status</SelectItem>
-                                        <SelectItem value="pending">Menunggu Persetujuan</SelectItem>
-                                        <SelectItem value="approved">Disetujui</SelectItem>
-                                        <SelectItem value="active">Sedang Berlangsung</SelectItem>
-                                        <SelectItem value="completed">Selesai</SelectItem>
-                                        <SelectItem value="rejected">Ditolak</SelectItem>
-                                        <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                                    </SelectContent>
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="Filter Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Semua Status</SelectItem>
+                                    <SelectItem value="pending">Menunggu Persetujuan</SelectItem>
+                                    <SelectItem value="approved">Disetujui</SelectItem>
+                                    <SelectItem value="active">Sedang Berlangsung</SelectItem>
+                                    <SelectItem value="completed">Selesai</SelectItem>
+                                    <SelectItem value="rejected">Ditolak</SelectItem>
+                                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                                </SelectContent>
                                 </Select>
                             </div>
                         </div>

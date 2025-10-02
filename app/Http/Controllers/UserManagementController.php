@@ -86,7 +86,7 @@ class UserManagementController extends Controller
             'inactive' => User::where('is_active', false)->count(),
             'admins' => User::where('role', 'admin')->count(),
             'super_admins' => User::where('role', 'super-admin')->count(),
-            'regular_users' => User::where('role', 'user')->count(),
+            'regular_users' => User::where('role', 'pengguna')->count(),
         ]
     ]);
 }
@@ -97,7 +97,7 @@ class UserManagementController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('users/Create', [
+        return Inertia::render('users/create', [
             'roles' => collect(UserRole::cases())->map(fn($role) => [
                 'value' => $role->value,
                 'label' => $role->label(),

@@ -94,7 +94,7 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                     <div className="space-y-1">
                         <div className="flex items-center gap-4">
                             <Button variant="outline" size="sm" asChild>
-                                <Link href="/rooms">
+                                <Link href="/Rooms">
                                     <ArrowLeft className="h-4 w-4 mr-2" />
                                     Kembali
                                 </Link>

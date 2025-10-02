@@ -58,43 +58,53 @@ class ApprovalController extends Controller
         ];
 
         return Inertia::render('Approvals/Index', [
-            'pending_approvals' => $pendingApprovals->through(fn($b) => $b->toInertiaArray()),
+            'approvals' => $pendingApprovals->through(fn($b) => $b->toInertiaArray()),
             'recent_decisions'  => $recentDecisions->map(fn($b) => $b->toInertiaArray()),
             'stats'             => $stats,
+            'filters' => $filters ?? [],
         ]);
     }
 
     /**
      * Approve a borrowing request.
      */
-    public function approve(Request $request, Borrowing $borrowing): RedirectResponse
-    {
-        if (!$borrowing->isPending()) {
-            return back()->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
-        }
+  public function approve(Request $request, Borrowing $borrowing): RedirectResponse
+{
+    if (!$borrowing->isPending()) {
+        return back()->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
+    }
 
+    // simpan status lama untuk history
+    $oldStatus = $borrowing->status;
+
+    DB::transaction(function () use ($borrowing, $request, $oldStatus) {
+        // update borrowing
         $borrowing->update([
-            'status' => BorrowingStatus::APPROVED,
+            'status' => BorrowingStatus::APPROVED, // atau BorrowingStatus::ACTIVE jika Anda memilih "active"
             'approved_by' => auth()->id(),
             'approved_at' => now(),
             'admin_notes' => $request->admin_notes,
         ]);
 
-        $borrowing->room->update(['status' => RoomStatus::DIPAKAI]);
+        // update room status jika ada relasi room
+        if ($borrowing->room) {
+            $borrowing->room->update(['status' => RoomStatus::DIPAKAI]);
+        }
 
+        // create history
         BorrowingHistory::create([
             'borrowing_id' => $borrowing->id,
             'action' => 'approved',
-            'old_status' => BorrowingStatus::PENDING,
+            'old_status' => $oldStatus,
             'new_status' => BorrowingStatus::APPROVED,
             'comment' => $request->admin_notes ?? 'Peminjaman disetujui',
             'performed_by' => auth()->id(),
             'performed_at' => now(),
         ]);
+    });
 
-        return back()->with('success', 'Peminjaman berhasil disetujui.');
-    }
-
+    return back()->with('success', 'Peminjaman berhasil disetujui.');
+}
     /**
      * Reject a borrowing request.
      */

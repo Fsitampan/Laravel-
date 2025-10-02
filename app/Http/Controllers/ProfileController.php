@@ -19,9 +19,19 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
+        // Tambahkan avatar_url agar frontend tidak perlu membangun sendiri
+        $user->avatar_url = $user->avatar
+            ? asset('storage/' . $user->avatar)
+            : null;
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'auth' => [
+                'user' => $user,
+            ],
         ]);
     }
 
@@ -33,13 +43,24 @@ class ProfileController extends Controller
         $user = $request->user();
         $data = $request->validated();
 
-        // Handle avatar upload
-        if ($request->hasFile('avatar')) {
-            // Delete old avatar
+        // Handle avatar removal
+        if ($request->boolean('remove_avatar')) {
             if ($user->avatar) {
-                Storage::disk('public')->delete(str_replace(asset('storage/'), '', $user->avatar));
+                Storage::disk('public')->delete($user->avatar);
             }
+            $data['avatar'] = null;
+        }
+        // Handle new avatar upload
+        elseif ($request->hasFile('avatar')) {
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+            // Simpan path relatif "avatars/namafile.jpg"
             $data['avatar'] = $request->file('avatar')->store('avatars', 'public');
+        }
+        // Keep existing avatar
+        else {
+            $data['avatar'] = $user->avatar;
         }
 
         $user->fill($data);
@@ -50,7 +71,16 @@ class ProfileController extends Controller
 
         $user->save();
 
-        return Redirect::route('profile.edit')->with('success', 'Profil berhasil diperbarui.');
+        return Redirect::route('profile.edit')->with([
+            'status' => 'profile-updated',
+            'user' => $user->only([
+                'id', 'name', 'email', 'avatar', 'is_active', 'role',
+                'department', 'phone', 'address', 'bio',
+                'created_at', 'updated_at',
+            ]) + [
+                'avatar_url' => $user->avatar ? asset('storage/' . $user->avatar) : null,
+            ],
+        ]);
     }
 
     /**
@@ -66,9 +96,8 @@ class ProfileController extends Controller
 
         Auth::logout();
 
-        // Delete avatar
         if ($user->avatar) {
-            Storage::disk('public')->delete(str_replace(asset('storage/'), '', $user->avatar));
+            Storage::disk('public')->delete($user->avatar);
         }
 
         $user->delete();

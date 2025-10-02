@@ -56,23 +56,25 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
     const [selectedRoom_state, setSelectedRoom] = useState<Room | null>(selectedRoom || null);
     const [equipmentList, setEquipmentList] = useState<string[]>(['']);
 
-    const { data, setData, post, processing, errors, reset } = useForm<Record<string, any>>({
-        room_id: selectedRoom?.id || 0,
-        borrower_name: auth.user.name || '',
-        borrower_phone: auth.user.phone || '',
-        borrower_category: auth.user.category || 'pegawai',
-        borrower_department: auth.user.department || '',
-        borrower_institution: '',
-        purpose: '',
-        borrowed_at: '',
-        planned_return_at: '',
-        participant_count: 1,
-        equipment_needed: [],
-        notes: '',
-        is_recurring: false,
-        recurring_pattern: '',
-        recurring_end_date: '',
-    });
+    const { data, setData, post, processing, errors } = useForm<Record<string, any>>({
+    room_id: selectedRoom?.id || 0,
+    borrower_name: auth.user.name || '',
+    borrower_phone: auth.user.phone || '',
+    borrower_category: auth.user.category || 'pegawai',
+    borrower_department: auth.user.department || '',
+    borrower_institution: '',
+    purpose: '',
+    borrow_date: '',
+    start_time: '',
+    end_time: '',
+    return_date: '',
+    participant_count: 1,
+    equipment_needed: [],
+    notes: '',
+    is_recurring: false,
+    recurring_pattern: '',
+    recurring_end_date: '',
+});
 
     // Filter available rooms
     const availableRooms = rooms.filter(room => 
@@ -103,18 +105,18 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
             return;
         }
         
-        if (!data.borrowed_at) {
+        if (!data.start_time) {
             toast.error('Waktu mulai harus diisi');
             return;
         }
-        
-        if (!data.planned_return_at) {
+
+        if (!data.end_time) {
             toast.error('Waktu selesai harus diisi');
             return;
         }
         
         // Validate start time is not in the past
-        const borrowedAt = new Date(data.borrowed_at);
+        const borrowedAt = new Date(data.start_time);
         const now = new Date();
         if (borrowedAt < now) {
             toast.error('Waktu mulai tidak boleh di masa lampau');
@@ -122,8 +124,8 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
         }
         
         // Validate end time is after start time
-        const plannedReturnAt = new Date(data.planned_return_at);
-        if (plannedReturnAt <= borrowedAt) {
+        const endTime = new Date(data.end_time);
+        if (endTime <= borrowedAt) {
             toast.error('Waktu selesai harus setelah waktu mulai');
             return;
         }
@@ -308,10 +310,11 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                     <div>
                                         <Label htmlFor="room_id">Ruangan *</Label>
                                         <Select 
+                                            name="room_id"   
                                             value={data.room_id.toString()} 
                                             onValueChange={handleRoomSelect}
                                         >
-                                            <SelectTrigger className={cn(errors.room_id && "border-red-500")}>
+                                            <SelectTrigger  id="room_id" className={cn(errors.room_id && "border-red-500")}>
                                                 <SelectValue placeholder="Pilih ruangan yang tersedia" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -323,7 +326,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                     availableRooms.map((room) => (
                                                         <SelectItem key={room.id} value={room.id.toString()}>
                                                             <div className="flex items-center justify-between w-full">
-                                                                <span>Ruang {room.name}</span>
+                                                                <span>{room.name}</span>
                                                                 <Badge variant="outline" className="ml-2">
                                                                     {room.capacity} orang
                                                                 </Badge>
@@ -432,7 +435,7 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                                 value={data.borrower_category} 
                                                 onValueChange={(value) => setData('borrower_category', value as any)}
                                             >
-                                                <SelectTrigger className={cn(errors.borrower_category && "border-red-500")}>
+                                                <SelectTrigger id="borrower_category"  className={cn(errors.borrower_category && "border-red-500")}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -496,106 +499,146 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                 </CardContent>
                             </Card>
 
-                            {/* Schedule */}
-                            <Card className="border-0 shadow-sm">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <CalendarIcon className="h-5 w-5" />
-                                        Jadwal Peminjaman
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Tentukan waktu dan durasi peminjaman ruangan
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="borrowed_at">Mulai *</Label>
-                                            <Input
-                                                id="borrowed_at"
-                                                type="datetime-local"
-                                                value={data.borrowed_at}
-                                                onChange={(e) => setData('borrowed_at', e.target.value)}
-                                                className={cn(errors.borrowed_at && "border-red-500")}
-                                                min={new Date().toISOString().slice(0, 16)}
-                                                required
-                                            />
-                                            {errors.borrowed_at && (
-                                                <p className="text-sm text-red-600 mt-1">{errors.borrowed_at}</p>
-                                            )}
-                                        </div>
+                     {/* Schedule */}
+                    <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5" />
+                        Jadwal Peminjaman
+                        </CardTitle>
+                        <CardDescription>
+                        Tentukan tanggal, jam mulai, dan jam selesai peminjaman ruangan
+                        </CardDescription>
+                    </CardHeader>
 
-                                        <div>
-                                            <Label htmlFor="planned_return_at">Selesai (Estimasi) *</Label>
-                                            <Input
-                                                id="planned_return_at"
-                                                type="datetime-local"
-                                                value={data.planned_return_at}
-                                                onChange={(e) => setData('planned_return_at', e.target.value)}
-                                                className={cn(errors.planned_return_at && "border-red-500")}
-                                                min={data.borrowed_at || new Date().toISOString().slice(0, 16)}
-                                                required
-                                            />
-                                            {errors.planned_return_at && (
-                                                <p className="text-sm text-red-600 mt-1">{errors.planned_return_at}</p>
-                                            )}
-                                        </div>
-                                    </div>
+                    <CardContent className="space-y-4">
+                        {/* Tanggal Pinjam & Tanggal Selesai */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="borrow_date">Tanggal Pinjam *</Label>
+                            <Input
+                            id="borrow_date"
+                            type="date"
+                            value={data.borrow_date}
+                            onChange={(e) => setData("borrow_date", e.target.value)}
+                            className={cn(errors.borrow_date && "border-red-500")}
+                            min={new Date().toISOString().split("T")[0]}
+                            required
+                            />
+                            {errors.borrow_date && (
+                            <p className="text-sm text-red-600 mt-1">{errors.borrow_date}</p>
+                            )}
+                        </div>
 
-                                    {data.borrowed_at && data.planned_return_at && (
-                                        <div className="p-3 bg-blue-50 rounded-lg">
-                                            <p className="text-sm text-blue-800">
-                                                <Clock className="h-4 w-4 inline mr-1" />
-                                                Durasi peminjaman: {getDuration()}
-                                            </p>
-                                        </div>
-                                    )}
+                        <div>
+                            <Label htmlFor="return_date">Tanggal Selesai (Opsional)</Label>
+                            <Input
+                            id="return_date"
+                            type="date"
+                            value={data.return_date}
+                            onChange={(e) => setData("return_date", e.target.value)}
+                            className={cn(errors.return_date && "border-red-500")}
+                            min={data.borrow_date || new Date().toISOString().split("T")[0]}
+                            />
+                            {errors.return_date && (
+                            <p className="text-sm text-red-600 mt-1">{errors.return_date}</p>
+                            )}
+                        </div>
+                        </div>
 
-                                    {/* Recurring Options */}
-                                    <div className="space-y-4">
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id="is_recurring"
-                                                checked={data.is_recurring}
-                                                onCheckedChange={(checked) => setData('is_recurring', !!checked)}
-                                            />
-                                            <Label htmlFor="is_recurring">Peminjaman berulang</Label>
-                                        </div>
+                        {/* Jam Mulai & Jam Selesai */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="start_time">Jam Mulai *</Label>
+                            <Input
+                            id="start_time"
+                            type="time"
+                            value={data.start_time}
+                            onChange={(e) => setData("start_time", e.target.value)}
+                            className={cn(errors.start_time && "border-red-500")}
+                            required
+                            />
+                            {errors.start_time && (
+                            <p className="text-sm text-red-600 mt-1">{errors.start_time}</p>
+                            )}
+                        </div>
 
-                                        {data.is_recurring && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6 border-l-2 border-blue-200 bg-blue-50 p-4 rounded">
-                                                <div>
-                                                    <Label htmlFor="recurring_pattern">Pola Pengulangan *</Label>
-                                                    <Select 
-                                                        value={data.recurring_pattern} 
-                                                        onValueChange={(value) => setData('recurring_pattern', value)}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Pilih pola pengulangan" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="daily">Harian</SelectItem>
-                                                            <SelectItem value="weekly">Mingguan</SelectItem>
-                                                            <SelectItem value="monthly">Bulanan</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
+                        <div>
+                            <Label htmlFor="end_time">Jam Selesai *</Label>
+                            <Input
+                            id="end_time"
+                            type="time"
+                            value={data.end_time}
+                            onChange={(e) => setData("end_time", e.target.value)}
+                            className={cn(errors.end_time && "border-red-500")}
+                            min={data.start_time}
+                            required
+                            />
+                            {errors.end_time && (
+                            <p className="text-sm text-red-600 mt-1">{errors.end_time}</p>
+                            )}
+                        </div>
+                        </div>
 
-                                                <div>
-                                                    <Label htmlFor="recurring_end_date">Tanggal Berakhir *</Label>
-                                                    <Input
-                                                        id="recurring_end_date"
-                                                        type="date"
-                                                        value={data.recurring_end_date}
-                                                        onChange={(e) => setData('recurring_end_date', e.target.value)}
-                                                        min={new Date().toISOString().split('T')[0]}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                        {/* Durasi */}
+                        {data.start_time && data.end_time && (
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                            <Clock className="h-4 w-4 inline mr-1" />
+                            Durasi peminjaman: {getDuration()}
+                            </p>
+                        </div>
+                        )}
+
+                        {/* Recurring Options */}
+                        <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                            id="is_recurring"
+                            name="is_recurring"         
+                            checked={data.is_recurring}
+                            onCheckedChange={(checked) => setData("is_recurring", !!checked)}
+                            />
+                            <Label htmlFor="is_recurring">Peminjaman berulang</Label>
+                        </div>
+
+                        {data.is_recurring && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6 border-l-2 border-blue-200 bg-blue-50 p-4 rounded">
+                            <div>
+                                <Label htmlFor="recurring_pattern">Pola Pengulangan *</Label>
+                                <Select
+                                value={data.recurring_pattern}
+                                onValueChange={(value) => setData("recurring_pattern", value)}
+                                >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih pola pengulangan" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="daily">Harian</SelectItem>
+                                    <SelectItem value="weekly">Mingguan</SelectItem>
+                                    <SelectItem value="monthly">Bulanan</SelectItem>
+                                </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label htmlFor="recurring_end_date">Tanggal Berakhir *</Label>
+                                <Input
+                                id="recurring_end_date"
+                                type="date"
+                                value={data.recurring_end_date}
+                                onChange={(e) =>
+                                    setData("recurring_end_date", e.target.value)
+                                }
+                                min={new Date().toISOString().split("T")[0]}
+                                />
+                            </div>
+                            </div>
+                        )}
+                        </div>
+                    </CardContent>
+                    </Card>
+
 
                             {/* Purpose & Equipment */}
                             <Card className="border-0 shadow-sm">
@@ -631,6 +674,8 @@ export default function CreateBorrowing({ auth, rooms, selectedRoom }: CreateBor
                                             {equipmentList.map((equipment, index) => (
                                                 <div key={index} className="flex items-center space-x-2">
                                                     <Input
+                                                        id={`equipment_${index}`}
+                                                        name="equipment_needed[]"  
                                                         type="text"
                                                         value={equipment}
                                                         onChange={(e) => updateEquipment(index, e.target.value)}

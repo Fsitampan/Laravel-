@@ -426,7 +426,7 @@ export default function Dashboard({
                                                     Detail
                                                 </Link>
                                             </Button>
-                                            {room.status === 'occupied' && (
+                                            {room.status === 'dipakai' && (
                                                 <Button asChild size="sm" className="flex-1">
                                                     <Link href={`/Borrowings/Create?room=${room.id}`}>
                                                         <Plus className="h-4 w-4 mr-2" />

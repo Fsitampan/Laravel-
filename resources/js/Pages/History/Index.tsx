@@ -52,7 +52,7 @@ export default function HistoryIndex({ auth, histories, actionCounts, filters }:
     const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
 
     const handleSearch = debounce((value: string) => {
-        router.get('/history', {
+        router.get('/History', {
             ...filters,
             search: value,
             page: 1
@@ -64,7 +64,7 @@ export default function HistoryIndex({ auth, histories, actionCounts, filters }:
 
     const handleActionFilter = (action: string) => {
         setActionFilter(action);
-        router.get('/history', {
+        router.get('/History', {
             ...filters,
             action: action === 'all' ? undefined : action,
             page: 1
@@ -75,7 +75,7 @@ export default function HistoryIndex({ auth, histories, actionCounts, filters }:
     };
 
     const handlePageChange = (page: number) => {
-        router.get('/history', {
+        router.get('/History', {
             ...filters,
             page
         }, {

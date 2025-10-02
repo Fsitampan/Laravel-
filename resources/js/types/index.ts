@@ -265,7 +265,7 @@ export interface CreateUserData {
     email: string;
     password: string;
     password_confirmation: string;
-    role: 'admin' | 'user';
+    role: 'admin' | 'pengguna';
     category: 'pegawai' | 'tamu' | 'magang';
     phone?: string;
     department?: string;
@@ -441,7 +441,7 @@ export interface BorrowingFormData {
     borrower_email: string;
     borrower_phone: string;
     borrower_identification: string;
-    borrower_category: 'pegawai' | 'tamu' | 'anak-magang';
+    borrower_category: 'pegawai' | 'tamu' | 'magang';
     borrower_department?: string;
     borrow_date: string;
     start_time?: string;
@@ -497,11 +497,12 @@ export interface BorrowingFilters {
     category?: 'pegawai' | 'tamu' | 'magang' | 'all';
     date_from?: string;
     date_to?: string;
+    viewAll?: number;
 }
 
 export interface UserFilters {
-     search?: string;
-    role?: 'super-admin' | 'admin' | 'user' | 'all';
+    search?: string;
+    role?: 'super-admin' | 'admin' | 'pengguna' | 'all';
     category?: 'pegawai' | 'tamu' | 'magang' | 'all';
     is_active?: boolean | 'all';
     department?: string;
@@ -513,6 +514,19 @@ export interface HistoryFilters {
     date_from?: string;
     date_to?: string;
     action?: string;
+}
+
+export interface ApprovalFilters {
+    search?: string;
+    status?: 'pending' | 'all';
+    room_id?: number;
+    category?: 'employee' | 'guest' | 'intern' | 'all';
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    per_page?: number;
+    sort?: string;
+    direction?: 'asc' | 'desc';
 }
 
 // Option Types
@@ -653,9 +667,9 @@ export interface RoomEquipment {
 // Utility types
 export type RoomStatus = 'tersedia' | 'dipakai' | 'pemeliharaan';
 export type BorrowingStatus = 'pending' | 'approved' | 'rejected' | 'active' | 'completed' | 'cancelled';
-export type UserRole = 'super-admin' | 'admin' | 'user';
-export type BorrowerCategory = 'pegawai' | 'tamu' | 'anak-magang';
-export type UserCategory = 'pegawai' | 'tamu' | 'anak-magang';
+export type UserRole = 'super-admin' | 'admin' | 'pengguna';
+export type BorrowerCategory = 'pegawai' | 'tamu' | 'magang';
+export type UserCategory = 'pegawai' | 'tamu' | 'magang';
 export type EquipmentCondition = 'excellent' | 'good' | 'fair' | 'poor' | 'broken';
 
 // Event types for real-time updates

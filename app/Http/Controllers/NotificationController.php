@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
-use inertia\inertia;
 
 class NotificationController extends Controller
 {
@@ -18,19 +17,182 @@ class NotificationController extends Controller
     {
         $user = Auth::user();
         
-        $notifications = Notification::forUser($user->id)
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->get('per_page', 20));
+        $query = Notification::forUser($user->id);
+        
+        // Filter by type
+        if ($request->has('type') && $request->type !== 'all') {
+            $query->where('type', $request->type);
+        }
+        
+        // Filter by category
+        if ($request->has('category') && $request->category !== 'all') {
+            $categories = [
+                'user' => ['user_registered', 'user_profile_updated', 'user_deleted'],
+                'room' => ['room_created', 'room_updated', 'room_deleted', 'room_maintenance', 'room_available'],
+                'borrowing' => ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted'],
+                'system' => ['system_update', 'system_alert']
+            ];
+            
+            if (isset($categories[$request->category])) {
+                $query->whereIn('type', $categories[$request->category]);
+            }
+        }
+        
+        // Filter by read/unread
+        if ($request->has('status')) {
+            if ($request->status === 'unread') {
+                $query->unread();
+            } elseif ($request->status === 'read') {
+                $query->read();
+            }
+        }
+        
+        // Search
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('message', 'like', "%{$search}%");
+            });
+        }
+        
+        $notifications = $query->orderBy('created_at', 'desc')
+            ->limit(100)
+            ->get();
 
         $unreadCount = Notification::forUser($user->id)->unread()->count();
+        
+        // Add computed fields to each notification
+        foreach ($notifications as $notification) {
+            $notification->time_ago = $notification->created_at->diffForHumans();
+            $notification->icon = $this->getNotificationIcon($notification->type);
+            $notification->color = $this->getNotificationColor($notification->type);
+            $notification->category = $this->getNotificationCategory($notification->type);
+            $notification->priority = $this->getNotificationPriority($notification->type);
+        }
 
-        return Inertia::render('notifications/index', [
-            'auth' => [
-                'user' => $user,
-            ],
-            'notifications' => $notifications,
-            'unread_count' => $unreadCount,
+        // Get statistics
+        $stats = $this->getStatistics($user->id);
+
+        // If this is an AJAX request (for React components), return JSON
+        if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json([
+                'notifications' => $notifications,
+                'unread_count' => $unreadCount,
+                'total' => $notifications->count(),
+                'stats' => $stats,
+            ]);
+        }
+
+        // Otherwise, return Inertia view
+        return inertia('notifications/index', [
+            'initialNotifications' => $notifications,
+            'initialStats' => $stats,
         ]);
+    }
+    
+    private function getStatistics($userId)
+    {
+        $total = Notification::forUser($userId)->count();
+        $unread = Notification::forUser($userId)->unread()->count();
+        $read = Notification::forUser($userId)->read()->count();
+        
+        // Count by category
+        $userNotifications = Notification::forUser($userId)
+            ->whereIn('type', ['user_registered', 'user_profile_updated', 'user_deleted'])
+            ->count();
+            
+        $roomNotifications = Notification::forUser($userId)
+            ->whereIn('type', ['room_created', 'room_updated', 'room_deleted', 'room_maintenance', 'room_available'])
+            ->count();
+            
+        $borrowingNotifications = Notification::forUser($userId)
+            ->whereIn('type', ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted'])
+            ->count();
+            
+        $systemNotifications = Notification::forUser($userId)
+            ->whereIn('type', ['system_update', 'system_alert'])
+            ->count();
+        
+        return [
+            'total' => $total,
+            'unread' => $unread,
+            'read' => $read,
+            'by_category' => [
+                'user' => $userNotifications,
+                'room' => $roomNotifications,
+                'borrowing' => $borrowingNotifications,
+                'system' => $systemNotifications,
+            ]
+        ];
+    }
+    
+    private function getNotificationIcon($type)
+    {
+        $icons = [
+            'user_registered' => 'user-plus',
+            'user_profile_updated' => 'user-cog',
+            'user_deleted' => 'user-minus',
+            'room_created' => 'plus',
+            'room_updated' => 'edit',
+            'room_deleted' => 'trash',
+            'room_maintenance' => 'alert-triangle',
+            'room_available' => 'check-circle',
+            'borrowing_created' => 'alert-circle',
+            'borrowing_approved' => 'check-circle',
+            'borrowing_rejected' => 'x-circle',
+            'borrowing_cancelled' => 'ban',
+            'borrowing_completed' => 'check',
+            'borrowing_reminder' => 'clock',
+            'borrowing_updated' => 'edit',
+            'borrowing_deleted' => 'trash',
+            'system_update' => 'info',
+        ];
+        
+        return $icons[$type] ?? 'bell';
+    }
+    
+    private function getNotificationColor($type)
+    {
+        $colors = [
+            'user_registered' => 'purple',
+            'user_profile_updated' => 'purple',
+            'user_deleted' => 'gray',
+            'room_created' => 'blue',
+            'room_updated' => 'indigo',
+            'room_deleted' => 'gray',
+            'room_maintenance' => 'orange',
+            'room_available' => 'green',
+            'borrowing_created' => 'blue',
+            'borrowing_approved' => 'green',
+            'borrowing_rejected' => 'red',
+            'borrowing_cancelled' => 'gray',
+            'borrowing_completed' => 'emerald',
+            'borrowing_reminder' => 'yellow',
+            'borrowing_updated' => 'blue',
+            'borrowing_deleted' => 'gray',
+            'system_update' => 'blue',
+        ];
+        
+        return $colors[$type] ?? 'gray';
+    }
+    
+    private function getNotificationCategory($type)
+    {
+        if (str_starts_with($type, 'user_')) return 'user';
+        if (str_starts_with($type, 'room_')) return 'room';
+        if (str_starts_with($type, 'borrowing_')) return 'borrowing';
+        return 'system';
+    }
+    
+    private function getNotificationPriority($type)
+    {
+        $highPriority = ['borrowing_created', 'borrowing_rejected', 'borrowing_reminder', 'room_maintenance', 'user_registered'];
+        $lowPriority = ['user_profile_updated', 'room_updated', 'borrowing_completed', 'borrowing_cancelled'];
+        
+        if (in_array($type, $highPriority)) return 'high';
+        if (in_array($type, $lowPriority)) return 'low';
+        return 'medium';
     }
 
     public function markAsRead($id)
@@ -103,6 +265,44 @@ class NotificationController extends Controller
             'message' => 'Semua notifikasi telah dihapus'
         ]);
     }
+    
+    public function statistics()
+    {
+        $user = Auth::user();
+        
+        $total = Notification::forUser($user->id)->count();
+        $unread = Notification::forUser($user->id)->unread()->count();
+        $read = Notification::forUser($user->id)->read()->count();
+        
+        // Count by category
+        $userNotifications = Notification::forUser($user->id)
+            ->whereIn('type', ['user_registered', 'user_profile_updated', 'user_deleted'])
+            ->count();
+            
+        $roomNotifications = Notification::forUser($user->id)
+            ->whereIn('type', ['room_created', 'room_updated', 'room_deleted', 'room_maintenance', 'room_available'])
+            ->count();
+            
+        $borrowingNotifications = Notification::forUser($user->id)
+            ->whereIn('type', ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted'])
+            ->count();
+            
+        $systemNotifications = Notification::forUser($user->id)
+            ->whereIn('type', ['system_update', 'system_alert'])
+            ->count();
+        
+        return response()->json([
+            'total' => $total,
+            'unread' => $unread,
+            'read' => $read,
+            'by_category' => [
+                'user' => $userNotifications,
+                'room' => $roomNotifications,
+                'borrowing' => $borrowingNotifications,
+                'system' => $systemNotifications,
+            ]
+        ]);
+    }
 
     private function getUserNotifications($user)
     {
@@ -159,7 +359,7 @@ class NotificationController extends Controller
                 'timestamp' => now()->subHours(2)->toISOString(),
                 'read' => false,
                 'priority' => 'info',
-                'action_url' => '/users',
+                'action_url' => '/Users',
             ];
         }
 

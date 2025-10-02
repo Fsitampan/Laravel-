@@ -22,51 +22,65 @@ class RoomController extends Controller
     /**
      * Display a listing of the rooms.
      */
-    public function index(): Response
+      public function index(Request $request): Response
     {
-        $rooms = Room::withCount(['borrowings' => function ($query) {
-            $query->where('status', 'active');
-        }])
-        ->with(['currentBorrowing' => function ($query) {
-            $query->where('status', 'active')
-                  ->with('user')
-                  ->latest('created_at'); // Use created_at as fallback until migration runs
-        }])
-        ->orderBy('name')
-        ->paginate(9) 
-        ->through(function ($room) {   // 2. lalu transform
-        $currentBorrowing = $room->currentBorrowing;
+        $query = Room::query();
 
-        return [
-            'id' => $room->id,
-            'name' => $room->name,
-            'full_name' => $room->full_name,
-            'capacity' => $room->capacity,
-            'location' => $room->location,
-            'description' => $room->description,
-            'status' => $room->status,
-            'facilities' => $room->facilities,
-            'borrowings_count' => $room->borrowings_count,
-            'image_url' => $room->image 
-            ? asset('storage/' . $room->image) // kalau ada file lokal
-            : ($room->image_url ?: 'https://source.unsplash.com/800x600/?meeting,room'),
+        // optional: filter by search if you want
+        if ($request->filled('search')) {
+            $q = $request->input('search');
+            $query->where(function ($qq) use ($q) {
+                $qq->where('name', 'like', "%{$q}%")
+                   ->orWhere('code', 'like', "%{$q}%")
+                   ->orWhere('description', 'like', "%{$q}%")
+                   ->orWhere('location', 'like', "%{$q}%");
+            });
+        }
 
-            'current_borrowing' => $currentBorrowing ? [
-                'id' => $currentBorrowing->id,
-                'borrower_name' => $currentBorrowing->borrower_name,
-                'user_name' => $currentBorrowing->user?->name ?? 'Unknown',
-                'borrowed_at' => $currentBorrowing->borrowed_at,
-                'planned_return_at' => $currentBorrowing->planned_return_at,
-                'purpose' => $currentBorrowing->purpose,
-            ] : null,
-            'created_at' => $room->created_at,
-            'updated_at' => $room->updated_at,
-        ];
-    })
-    ->withQueryString();
+        // 1. Menggunakan query yang sudah efisien
+        $rooms = $query
+            ->withCount(['borrowings' => fn($q) => $q->where('status', 'active')])
+            ->with('currentBorrowing.user') 
+            ->orderBy('name')
+            ->paginate(9)
+            // 2. PASTIKAN BLOK ->through() INI ADA DAN LENGKAP
+            ->through(function ($room) {
+                $currentBorrowing = $room->currentBorrowing;
+
+                return [
+                    'id' => $room->id,
+                    'name' => $room->name,
+                    'full_name' => $room->full_name,
+                    'code' => $room->code,
+                    'description' => $room->description,
+                    'capacity' => $room->capacity,
+                    'location' => $room->location,
+                    'status' => $room->status,
+                    'facilities' => $room->facilities,
+                    'borrowings_count' => $room->borrowings_count,
+                    'image' => $room->image, // Tetap kirim path mentah untuk form edit
+                    'image_url' => $room->image_url, // Laravel akan otomatis memanggil accessor getImageUrlAttribute
+                    // current borrowing yang disederhanakan untuk frontend
+                    'current_borrowing' => $currentBorrowing ? [
+                        'id' => $currentBorrowing->id,
+                        'borrower_name' => $currentBorrowing->borrower_name,
+                        'user_name' => $currentBorrowing->user?->name ?? null,
+                        'borrowed_at' => $currentBorrowing->borrowed_at ?? null,
+                        'planned_return_at' => $currentBorrowing->planned_return_at ?? null,
+                        'purpose' => $currentBorrowing->purpose ?? null,
+                    ] : null,
+
+                    'created_at' => $room->created_at,
+                    'updated_at' => $room->updated_at,
+                ];
+            })
+            ->withQueryString();
 
         return Inertia::render('Rooms/Index', [
             'rooms' => $rooms,
+            'filters' => [
+                'search' => $request->input('search'),
+            ],
             'can_manage' => auth()->user()->role === 'admin' || auth()->user()->role === 'super-admin',
             'can_delete' => auth()->user()->role === 'super-admin',
         ]);
@@ -109,10 +123,10 @@ class RoomController extends Controller
      */
     public function show(Room $room): Response
     {
-        $room->load(['borrowings' => function ($query) {
-            $query->with('user')
-                  ->orderBy('created_at', 'desc') // Use created_at as fallback until migration runs
-                  ->limit(10);
+        $room->load(['borrowings' => function ($q) {
+            $q->with('user')
+              ->orderBy('created_at', 'desc')
+              ->limit(10);
         }]);
 
         // Get room statistics
@@ -121,7 +135,7 @@ class RoomController extends Controller
             'active_bookings' => $room->borrowings()->where('status', 'active')->count(),
             'completed_bookings' => $room->borrowings()->where('status', 'completed')->count(),
             'monthly_bookings' => $room->borrowings()
-                ->whereMonth('created_at', now()->month) // Use created_at as fallback until migration runs
+                ->whereMonth('created_at', now()->month)
                 ->count(),
         ];
 
@@ -131,41 +145,53 @@ class RoomController extends Controller
             ->with('user')
             ->first();
 
-        // Get upcoming bookings
+        // Get upcoming bookings (approved)
         $upcomingBookings = $room->borrowings()
             ->where('status', 'approved')
-            ->where('borrow_date', '>=', now()->toDateString()) // Use borrow_date instead of borrowed_at
+            ->where('borrow_date', '>=', now()->toDateString())
             ->with('user')
-            ->orderBy('borrow_date') // Use borrow_date instead of borrowed_at
+            ->orderBy('borrow_date')
             ->limit(5)
             ->get();
 
-                return Inertia::render('Rooms/Show', [
-                'room' => [
-                    'id' => $room->id,
-                    'name' => $room->name,
-                    'code' => $room->code,
-                    'description' => $room->description,
-                    'capacity' => $room->capacity,
-                    'status' => $room->status,
-                    'location' => $room->location,
-                    'notes' => $room->notes,
-                    'image' => $room->image, 
-                    
-                    // ✅ Pastikan facilities selalu array
-                    'facilities' => $room->facilities
-                        ? (is_array($room->facilities)
-                            ? $room->facilities
-                            : json_decode($room->facilities, true))
-                        : [],
-
-                    // jika Anda punya relasi lain, kirim juga
-                    'equipment' => $room->equipment ?? [],
-                    'current_borrowing' => $room->currentBorrowing ?? null,
-                    'recent_borrowings' => $room->recentBorrowings ?? [],
-                    'upcoming_borrowings' => $room->upcomingBorrowings ?? [],
-                ]
-            ]);
+        return Inertia::render('Rooms/Show', [
+            'room' => [
+                'id' => $room->id,
+                'name' => $room->name,
+                'code' => $room->code,
+                'full_name' => $room->full_name,
+                'description' => $room->description,
+                'capacity' => $room->capacity,
+                'status' => $room->status,
+                'location' => $room->location,
+                'notes' => $room->notes,
+                'image' => $room->image,
+                'image_url' => $room->image_url,
+                'facilities' => $room->facilities
+                    ? (is_array($room->facilities) ? $room->facilities : json_decode($room->facilities, true))
+                    : [],
+                'equipment' => $room->equipment ?? [],
+                'current_borrowing' => $currentBorrowing ? [
+                    'id' => $currentBorrowing->id,
+                    'borrower_name' => $currentBorrowing->borrower_name,
+                    'user_name' => $currentBorrowing->user?->name ?? null,
+                    'purpose' => $currentBorrowing->purpose,
+                ] : null,
+                'recent_borrowings' => $room->borrowings->map(fn($b) => [
+                    'id' => $b->id,
+                    'borrower_name' => $b->borrower_name,
+                    'status' => $b->status,
+                    'created_at' => $b->created_at,
+                ]),
+                'upcoming_borrowings' => $upcomingBookings->map(fn($b) => [
+                    'id' => $b->id,
+                    'borrow_date' => $b->borrow_date,
+                    'start_time' => $b->start_time,
+                    'borrower_name' => $b->borrower_name,
+                ]),
+            ],
+            'stats' => $stats,
+        ]);
     }
 
     /**
@@ -183,38 +209,35 @@ class RoomController extends Controller
                 'location' => $room->location,
                 'description' => $room->description,
                 'status' => $room->status,
-                'image' => $room->image, 
-
-                // ✅ pastikan facilities selalu array
+                'image' => $room->image,
                 'facilities' => $room->facilities
-                    ? (is_array($room->facilities)
-                        ? $room->facilities
-                        : json_decode($room->facilities, true))
+                    ? (is_array($room->facilities) ? $room->facilities : json_decode($room->facilities, true))
                     : [],
             ]
         ]);
     }
+
     /**
      * Update the specified room in storage.
      */
-        public function update(UpdateRoomRequest $request, Room $room)
-        {
-            $data = $request->validated();
+    public function update(UpdateRoomRequest $request, Room $room)
+    {
+        $data = $request->validated();
 
-            if ($request->hasFile('image')) {
-                $path = $request->file('image')->store('rooms', 'public');
-                $data['image'] = $path;
-                $data['image_url'] = null;
-            } elseif ($request->filled('image_url')) {
-                $data['image_url'] = $request->input('image_url');
-                $data['image'] = null;
-            }
-
-            $room->update($data);
-
-            return redirect()->route('Rooms.Show', $room)
-                ->with('success', 'Ruangan berhasil diperbarui.');
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('rooms', 'public');
+            $data['image'] = $path;
+            $data['image_url'] = null;
+        } elseif ($request->filled('image_url')) {
+            $data['image_url'] = $request->input('image_url');
+            $data['image'] = null;
         }
+
+        $room->update($data);
+
+        return redirect()->route('Rooms.Show', $room)
+            ->with('success', 'Ruangan berhasil diperbarui.');
+    }
 
     /**
      * Update room status.

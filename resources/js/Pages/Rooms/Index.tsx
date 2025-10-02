@@ -62,7 +62,7 @@ interface RoomsPageProps extends PageProps {
 // Mock data untuk gambar ruangan - dalam production akan dari database
 // Ambil gambar dari database, fallback ke Unsplash
     const getRoomImage = (room: Room): string => {
-    return room.image_url; // cukup gunakan dari controller
+     return room.image_url;
     };
 
 

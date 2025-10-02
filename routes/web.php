@@ -57,7 +57,7 @@ Route::middleware('auth')->group(function () {
         ->name('superadmin.dashboard');
 
     // Profile routes
-    Route::get('/Profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/Profile', [ProfileController::class, 'Edit'])->name('profile.Edit');
     Route::patch('/Profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/Profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
@@ -94,8 +94,8 @@ Route::middleware('auth')->group(function () {
     });
 
     // Borrowing Management routes (Capital case)
-    Route::prefix('Borrowings')->name('borrowings.')->group(function () {
-        Route::get('/', [BorrowingController::class, 'index'])->name('index');
+    Route::prefix('Borrowings')->name('Borrowings.')->group(function () {
+        Route::get('/', [BorrowingController::class, 'Index'])->name('Index');
         Route::get('/Create', [BorrowingController::class, 'create'])->name('create');
         Route::post('/', [BorrowingController::class, 'store'])->name('store');
         Route::get('/{borrowing}', [BorrowingController::class, 'show'])->name('show');
@@ -109,8 +109,8 @@ Route::middleware('auth')->group(function () {
     // Approval Management routes (Capital case) - Admin and Super Admin only
     Route::prefix('Approvals')->middleware('role:admin,super-admin')->name('approvals.')->group(function () {
         Route::get('/', [ApprovalController::class, 'index'])->name('index');
-        Route::post('/{borrowing}/Approve', [ApprovalController::class, 'approve'])->name('approve');
-        Route::post('/{borrowing}/Reject', [ApprovalController::class, 'reject'])->name('reject');
+        Route::post('/{borrowing}/approve', [ApprovalController::class, 'approve'])->name('approve');
+        Route::post('/{borrowing}/reject', [ApprovalController::class, 'reject'])->name('reject');
         Route::get('/Pending', [ApprovalController::class, 'pending'])->name('pending');
         Route::get('/History', [ApprovalController::class, 'history'])->name('history');
     });
@@ -128,7 +128,7 @@ Route::middleware('auth')->group(function () {
     // User Management routes (Capital case) - Super Admin only
     Route::prefix('users')->middleware('role:super-admin')->name('users.')->group(function () {
         Route::get('/', [UserManagementController::class, 'Index'])->name('Index');
-        Route::get('/Create', [UserManagementController::class, 'create'])->name('create');
+        Route::get('/create', [UserManagementController::class, 'create'])->name('create');
         Route::post('/', [UserManagementController::class, 'store'])->name('store');
         Route::get('/{user}', [UserManagementController::class, 'show'])->name('show');
         Route::get('/{user}/edit', [UserManagementController::class, 'edit'])->name('edit');
