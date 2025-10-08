@@ -11,6 +11,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB; // ← TAMBAHKAN INI
 
 class ApprovalController extends Controller
 {
@@ -61,50 +62,49 @@ class ApprovalController extends Controller
             'approvals' => $pendingApprovals->through(fn($b) => $b->toInertiaArray()),
             'recent_decisions'  => $recentDecisions->map(fn($b) => $b->toInertiaArray()),
             'stats'             => $stats,
-            'filters' => $filters ?? [],
+            'filters'           => $request->only(['search', 'status']), // ← Perbaiki ini
         ]);
     }
 
     /**
      * Approve a borrowing request.
      */
-  public function approve(Request $request, Borrowing $borrowing): RedirectResponse
-{
-    if (!$borrowing->isPending()) {
-        return back()->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
-    }
-
-    // simpan status lama untuk history
-    $oldStatus = $borrowing->status;
-
-    DB::transaction(function () use ($borrowing, $request, $oldStatus) {
-        // update borrowing
-        $borrowing->update([
-            'status' => BorrowingStatus::APPROVED, // atau BorrowingStatus::ACTIVE jika Anda memilih "active"
-            'approved_by' => auth()->id(),
-            'approved_at' => now(),
-            'admin_notes' => $request->admin_notes,
-        ]);
-
-        // update room status jika ada relasi room
-        if ($borrowing->room) {
-            $borrowing->room->update(['status' => RoomStatus::DIPAKAI]);
+    public function approve(Request $request, Borrowing $borrowing): RedirectResponse
+    {
+        if (!$borrowing->isPending()) {
+            return back()->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
         }
 
-        // create history
-        BorrowingHistory::create([
-            'borrowing_id' => $borrowing->id,
-            'action' => 'approved',
-            'old_status' => $oldStatus,
-            'new_status' => BorrowingStatus::APPROVED,
-            'comment' => $request->admin_notes ?? 'Peminjaman disetujui',
-            'performed_by' => auth()->id(),
-            'performed_at' => now(),
-        ]);
-    });
+        // Simpan status lama untuk history
+        $oldStatus = $borrowing->status;
 
-    return back()->with('success', 'Peminjaman berhasil disetujui.');
-}
+        DB::transaction(function () use ($borrowing, $request, $oldStatus) {
+            // Update borrowing - STATUS TETAP APPROVED, nanti auto jadi ACTIVE oleh command
+            $borrowing->update([
+                'status' => BorrowingStatus::APPROVED,
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
+                'notes' => $request->admin_notes, // ← Gunakan 'notes' bukan 'admin_notes'
+            ]);
+
+            // JANGAN update room status di sini - biarkan command yang handle
+            // Room status akan berubah saat borrowing menjadi ACTIVE
+
+            // Create history
+            BorrowingHistory::create([
+                'borrowing_id' => $borrowing->id,
+                'action' => 'approved',
+                'old_status' => $oldStatus->value,
+                'new_status' => BorrowingStatus::APPROVED->value,
+                'comment' => $request->admin_notes ?? 'Peminjaman disetujui',
+                'performed_by' => auth()->id(),
+                'performed_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', 'Peminjaman berhasil disetujui.');
+    }
+
     /**
      * Reject a borrowing request.
      */
@@ -118,29 +118,33 @@ class ApprovalController extends Controller
             return back()->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
         }
 
-        $borrowing->update([
-            'status' => BorrowingStatus::REJECTED,
-            'rejection_reason' => $request->rejection_reason,
-            'admin_notes' => $request->admin_notes,
-            'approved_by' => auth()->id(),
-            'approved_at' => now(),
-        ]);
+        $oldStatus = $borrowing->status;
 
-        BorrowingHistory::create([
-            'borrowing_id' => $borrowing->id,
-            'action' => 'rejected',
-            'old_status' => BorrowingStatus::PENDING,
-            'new_status' => BorrowingStatus::REJECTED,
-            'comment' => 'Peminjaman ditolak: ' . $request->rejection_reason,
-            'performed_by' => auth()->id(),
-            'performed_at' => now(),
-        ]);
+        DB::transaction(function () use ($borrowing, $request, $oldStatus) {
+            $borrowing->update([
+                'status' => BorrowingStatus::REJECTED,
+                'rejection_reason' => $request->rejection_reason,
+                'notes' => $request->admin_notes, // ← Gunakan 'notes' bukan 'admin_notes'
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
+            ]);
+
+            BorrowingHistory::create([
+                'borrowing_id' => $borrowing->id,
+                'action' => 'rejected',
+                'old_status' => $oldStatus->value,
+                'new_status' => BorrowingStatus::REJECTED->value,
+                'comment' => 'Peminjaman ditolak: ' . $request->rejection_reason,
+                'performed_by' => auth()->id(),
+                'performed_at' => now(),
+            ]);
+        });
 
         return back()->with('success', 'Peminjaman berhasil ditolak.');
     }
 
     /**
-     * Hitung rata-rata waktu respons (dummy, silakan sesuaikan).
+     * Hitung rata-rata waktu respons.
      */
     private function getAverageResponseTime(): string
     {
@@ -157,6 +161,7 @@ class ApprovalController extends Controller
         }, 0);
 
         $avgSeconds = $totalSeconds / $approved->count();
+        
         if ($avgSeconds < 60) {
             return round($avgSeconds) . ' detik';
         } elseif ($avgSeconds < 3600) {

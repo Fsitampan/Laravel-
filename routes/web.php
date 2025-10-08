@@ -37,6 +37,25 @@ Route::get('/', function () {
 
 // Authenticated routes
 Route::middleware('auth')->group(function () {
+
+    // Notifications (Inertia page)
+    Route::prefix('notifications')->name('notifications.')->group(function () {
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::patch('/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('markRead');
+        Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('markAllRead');
+        Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('destroy');
+        Route::delete('/bulk-delete', [NotificationController::class, 'destroyAll'])->name('destroyAll');
+    });
+
+    // Notifications API (JSON only)
+    Route::prefix('api')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']); // mengembalikan JSON jika url /api/...
+    Route::get('/notifications/statistics', [NotificationController::class, 'statistics']);
+    Route::patch('/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead']);
+    Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::delete('/notifications/bulk-delete', [NotificationController::class, 'destroyAll']);
+});
     
     // Dashboard routes with role-based redirection
     Route::get('/Dashboard', function () {
@@ -57,8 +76,8 @@ Route::middleware('auth')->group(function () {
         ->name('superadmin.dashboard');
 
     // Profile routes
-    Route::get('/Profile', [ProfileController::class, 'Edit'])->name('profile.Edit');
-    Route::patch('/Profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('/Profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::post('/Profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/Profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Room Management routes (Capital case)

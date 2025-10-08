@@ -180,10 +180,6 @@ export default function Show({ auth, user, statistics, recentBorrowings }: UserS
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Button variant="secondary" size="lg" className="shadow-lg">
-                  <Download className="h-5 w-5 mr-2" />
-                  Export Data
-                </Button>
                 {canEditUser() && (
                   <Button size="lg" className="bg-white text-primary hover:bg-white/90 shadow-lg" asChild>
                     <Link href={`/users/${user.id}/edit`}>

@@ -38,7 +38,7 @@ export default function UpdateProfileInformationForm({
 }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
+  const { data, setData, patch, post, errors, processing, recentlySuccessful } = useForm({
     name: user.name || '',
     email: user.email || '',
     department: user.department || '',
@@ -49,7 +49,7 @@ export default function UpdateProfileInformationForm({
 
   const submit: FormEventHandler = (e) => {
     e.preventDefault();
-    patch(route('profile.update'), { forceFormData: true });
+    post(route('profile.update'), { forceFormData: true });
   };
 
   const handlePhotoSelect = (file: File | null) => {
@@ -104,7 +104,7 @@ export default function UpdateProfileInformationForm({
   };
 
   const RoleIcon = getRoleIcon(user.role);
-  const displayPhoto = previewUrl || user.avatar_url;
+  const displayPhoto = previewUrl || user.avatar;
 
   return (
     <section className={className}>

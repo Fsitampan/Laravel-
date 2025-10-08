@@ -336,7 +336,7 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                             <CardContent className="space-y-3">
                                 {room.status === 'tersedia' && room.is_active && (
                                     <Button className="w-full" asChild>
-                                        <Link href={`/borrowings/create?room=${room.id}`}>
+                                        <Link href={`/Borrowings/create?room=${room.id}`}>
                                             <Calendar className="h-4 w-4 mr-2" />
                                             Pinjam Ruangan
                                         </Link>

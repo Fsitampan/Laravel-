@@ -132,7 +132,7 @@ export default function ApprovalsIndex({ auth, approvals, filters = {} }: Approv
         }
         
         setActionLoading(selectedBorrowing.id);
-        router.patch(`/Approvals/${selectedBorrowing.id}/reject`, {
+        router.post(`/Approvals/${selectedBorrowing.id}/reject`, { // ← Ubah dari patch ke post
             rejection_reason: rejectionReason,
             admin_notes: approvalNotes
         }, {

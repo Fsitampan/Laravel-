@@ -15,50 +15,53 @@ class BorrowingController extends Controller
     /**
      * Tampilkan daftar peminjaman.
      */
-    public function Index(Request $request): Response
-    {
-    $user = Auth::user();
+ public function index(Request $request)
+{
+    $user = auth()->user();
 
-    $viewAll = $request->get('viewAll', false); // bisa dikirim dari frontend
-    $query = Borrowing::with(['room', 'user', 'creator'])
-    ->forUser($user, $viewAll);
+    $query = Borrowing::query()
+        ->with(['room', 'user'])
+        ->orderBy('created_at', 'desc');
 
+    // ✅ VIEW FILTER: Semua / Peminjaman Saya
+    $viewAll = $request->boolean('viewAll', false);
 
-        // Filter pencarian
-        if ($request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->where('borrower_name', 'like', "%{$request->search}%")
-                  ->orWhere('purpose', 'like', "%{$request->search}%");
-            });
+    if (!in_array($user->role, ['admin', 'super-admin'])) {
+        // User biasa hanya bisa melihat semua jika viewAll=1
+        if (!$viewAll) {
+            $query->where('user_id', $user->id);
         }
-        if ($request->status && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
-
-        $borrowings = $query->orderByDesc('created_at')
-            ->paginate(10)
-            ->withQueryString();
-
-        $borrowings->getCollection()
-            ->transform(fn($borrowing) => $borrowing->toInertiaArray());
-
-        // Statistik status
-        $stats = [
-            'total'     => Borrowing::forUser($user)->count(),
-            'pending'   => Borrowing::forUser($user)->pending()->count(),
-            'approved'  => Borrowing::forUser($user)->approved()->count(),
-            'active'    => Borrowing::forUser($user)->active()->count(),
-            'completed' => Borrowing::forUser($user)->completed()->count(),
-            'rejected'  => Borrowing::forUser($user)->rejected()->count(),
-            'cancelled' => Borrowing::forUser($user)->where('status', 'cancelled')->count(),
-        ];
-
-        return Inertia::render('Borrowings/Index', [
-            'borrowings' => $borrowings,
-            'filters'    => $request->only(['search', 'status']),
-            'stats'      => $stats,
-        ]);
     }
+
+    // 🔍 Pencarian
+    if ($request->filled('search')) {
+        $search = $request->input('search');
+        $query->where(function ($q) use ($search) {
+            $q->where('borrower_name', 'like', "%{$search}%")
+                ->orWhere('purpose', 'like', "%{$search}%")
+                ->orWhereHas('room', fn($r) => $r->where('name', 'like', "%{$search}%"));
+        });
+    }
+
+    // 🔎 Filter Status (gunakan enum BorrowingStatus)
+    if ($request->filled('status') && $request->status !== 'all') {
+        $query->where('status', $request->status);
+    }
+
+    // 🔄 Pagination
+    $borrowings = $query->paginate(10)->withQueryString();
+
+    return Inertia::render('Borrowings/Index', [
+        'borrowings' => $borrowings->through(fn($b) => $b->toInertiaArray()),
+        'filters' => [
+            'search'  => $request->input('search'),
+            'status'  => $request->input('status', 'all'),
+            'viewAll' => $viewAll,
+        ],
+        'can_manage' => in_array($user->role, ['admin', 'super-admin']),
+    ]);
+}
+
 
     /**
      * Form create peminjaman.
@@ -93,7 +96,7 @@ public function store(Request $request)
         'borrower_category'    => 'required|in:pegawai,tamu,anak-magang',
         'borrower_department'  => 'nullable|string',
         'borrower_institution' => 'nullable|string',
-        'borrow_date'          => 'required|date',
+        'borrow_date'          => 'required|date|after_or_equal:today',
         'start_time'           => 'required|date_format:H:i',
         'end_time'             => 'required|date_format:H:i|after:start_time',
         'return_date'          => 'nullable|date|after_or_equal:borrow_date',
@@ -103,15 +106,23 @@ public function store(Request $request)
         'notes'                => 'nullable|string|max:500',
     ]);
 
+    // Gabungkan tanggal dan waktu dengan benar
+    $borrowDate = \Carbon\Carbon::parse($validated['borrow_date']);
+    $returnDate = isset($validated['return_date']) 
+        ? \Carbon\Carbon::parse($validated['return_date'])
+        : $borrowDate->copy();
+
     $validated['user_id'] = auth()->id();
     $validated['created_by'] = auth()->id();
+    $validated['borrowed_at'] = $borrowDate->setTimeFromTimeString($validated['start_time']);
+    $validated['planned_return_at'] = $returnDate->setTimeFromTimeString($validated['end_time']);
+    $validated['status'] = 'pending'; // Set status awal
 
     Borrowing::create($validated);
 
     return redirect()->route('Borrowings.Index')
-        ->with('success', 'Peminjaman berhasil dibuat.');
+        ->with('success', 'Peminjaman berhasil dibuat dan menunggu persetujuan.');
 }
-
 
     /**
      * Form edit peminjaman.
@@ -175,7 +186,10 @@ public function store(Request $request)
     {
         $this->authorize('view', $borrowing);
 
-        $borrowing->load(['room', 'user', 'approver', 'creator', 'history.performer']);
+     $borrowing->load(['room', 'user', 'approver', 'creator', 'history.performedBy']);
+
+        if ($borrowing->room && is_string($borrowing->room->facilities)) {
+        $borrowing->room->facilities = json_decode($borrowing->room->facilities, true) ?? [];}
 
         return Inertia::render('Borrowings/Show', [
             'borrowing' => $borrowing->toInertiaArray(),

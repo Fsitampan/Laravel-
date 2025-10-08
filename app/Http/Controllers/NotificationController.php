@@ -13,32 +13,30 @@ use Carbon\Carbon;
 
 class NotificationController extends Controller
 {
-    public function index(Request $request)
+  public function index(Request $request)
     {
         $user = Auth::user();
-        
+
+        // DB query (filterable)
         $query = Notification::forUser($user->id);
-        
-        // Filter by type
+
         if ($request->has('type') && $request->type !== 'all') {
             $query->where('type', $request->type);
         }
-        
-        // Filter by category
+
         if ($request->has('category') && $request->category !== 'all') {
             $categories = [
                 'user' => ['user_registered', 'user_profile_updated', 'user_deleted'],
                 'room' => ['room_created', 'room_updated', 'room_deleted', 'room_maintenance', 'room_available'],
-                'borrowing' => ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted'],
-                'system' => ['system_update', 'system_alert']
+                'borrowing' => ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted', 'borrowing_pending', 'borrowing_overdue'],
+                'system' => ['system_update', 'system_alert', 'system_maintenance'],
             ];
-            
+
             if (isset($categories[$request->category])) {
                 $query->whereIn('type', $categories[$request->category]);
             }
         }
-        
-        // Filter by read/unread
+
         if ($request->has('status')) {
             if ($request->status === 'unread') {
                 $query->unread();
@@ -46,72 +44,150 @@ class NotificationController extends Controller
                 $query->read();
             }
         }
-        
-        // Search
+
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('message', 'like', "%{$search}%");
+                ->orWhere('message', 'like', "%{$search}%");
             });
         }
-        
-        $notifications = $query->orderBy('created_at', 'desc')
+
+        $dbNotifications = $query->orderBy('created_at', 'desc')
             ->limit(100)
             ->get();
 
-        $unreadCount = Notification::forUser($user->id)->unread()->count();
-        
-        // Add computed fields to each notification
-        foreach ($notifications as $notification) {
-            $notification->time_ago = $notification->created_at->diffForHumans();
-            $notification->icon = $this->getNotificationIcon($notification->type);
-            $notification->color = $this->getNotificationColor($notification->type);
-            $notification->category = $this->getNotificationCategory($notification->type);
-            $notification->priority = $this->getNotificationPriority($notification->type);
-        }
+        // Build synthetic notifications (from helper functions)
+        $synthetic = $this->getUserNotifications($user); // array of arrays
 
-        // Get statistics
-        $stats = $this->getStatistics($user->id);
+        // Normalize DB notifications to uniform array structure
+        $normalizedDb = $dbNotifications->map(function ($n) {
+            return [
+                'id' => (string) $n->id,
+                'user_id' => $n->user_id,
+                'type' => $n->type,
+                'title' => $n->title,
+                'message' => $n->message,
+                'data' => $n->data,
+                'read_at' => $n->read_at ? $n->read_at->toDateTimeString() : null,
+                'created_at' => $n->created_at ? $n->created_at->toDateTimeString() : now()->toDateTimeString(),
+                'updated_at' => $n->updated_at ? $n->updated_at->toDateTimeString() : null,
+                'source' => 'db',
+            ];
+        })->toArray();
 
-        // If this is an AJAX request (for React components), return JSON
-        if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+        // Normalize synthetic notifications
+        $normalizedSynth = array_map(function ($s) {
+            // ensure fields exist and map timestamp -> created_at
+            $created = isset($s['created_at']) ? $s['created_at'] : (isset($s['timestamp']) ? $s['timestamp'] : now()->toDateTimeString());
+            // try parse if ISO string, else keep
+            try {
+                $created_dt = Carbon::parse($created)->toDateTimeString();
+            } catch (\Throwable $e) {
+                $created_dt = now()->toDateTimeString();
+            }
+
+            // ensure type uses consistent naming (developer should also set types correctly at creation)
+            $type = $s['type'] ?? 'system_update';
+
+            return [
+                'id' => (string) ($s['id'] ?? 'synthetic_'.uniqid()),
+                'user_id' => $s['user_id'] ?? null,
+                'type' => $type,
+                'title' => $s['title'] ?? ($s['message'] ?? 'Notifikasi Sistem'),
+                'message' => $s['message'] ?? '',
+                'data' => $s['data'] ?? null,
+                'read_at' => $s['read_at'] ?? null,
+                'created_at' => $created_dt,
+                'updated_at' => $s['updated_at'] ?? null,
+                'source' => 'synthetic',
+            ];
+        }, $synthetic);
+
+        // Merge, sort by created_at desc, limit 100
+        $merged = collect(array_merge($normalizedDb, $normalizedSynth))
+            ->sortByDesc(function ($item) {
+                return Carbon::parse($item['created_at'])->getTimestamp();
+            })
+            ->values()
+            ->take(100)
+            ->map(function ($n) {
+                // compute UI helpers
+                $n['time_ago'] = Carbon::parse($n['created_at'])->diffForHumans();
+                $n['icon'] = $this->getNotificationIcon($n['type']);
+                $n['color'] = $this->getNotificationColor($n['type']);
+                $n['category'] = $this->getNotificationCategory($n['type']);
+                $n['priority'] = $this->getNotificationPriority($n['type']);
+                return $n;
+            });
+
+        // Compute unread count & stats from merged list (so synthetic included)
+        $unreadCount = $merged->filter(function ($n) {
+            return empty($n['read_at']);
+        })->count();
+
+        $stats = $this->computeStatisticsFromCollection($merged, $user->id);
+
+        // Return json for api/* routes OR Inertia for normal page
+        if ($request->is('api/*')) {
             return response()->json([
-                'notifications' => $notifications,
-                'unread_count' => $unreadCount,
-                'total' => $notifications->count(),
-                'stats' => $stats,
+                'notifications' => $merged->values(),
+                'unread_count'  => $unreadCount,
+                'total'         => $merged->count(),
+                'stats'         => $stats,
             ]);
         }
 
-        // Otherwise, return Inertia view
+        // For Inertia page: pass initialNotifications & initialStats (as collections/arrays)
         return inertia('notifications/index', [
-            'initialNotifications' => $notifications,
+            'initialNotifications' => $merged->values(),
             'initialStats' => $stats,
         ]);
     }
-    
-    private function getStatistics($userId)
+
+    private function computeStatisticsFromCollection($collection, $userId)
+    {
+        $total = $collection->count();
+        $unread = $collection->filter(fn($n) => empty($n['read_at']))->count();
+        $read = $total - $unread;
+
+        $byCategory = [
+            'user' => $collection->filter(fn($n) => str_starts_with($n['type'], 'user_'))->count(),
+            'room' => $collection->filter(fn($n) => str_starts_with($n['type'], 'room_'))->count(),
+            'borrowing' => $collection->filter(fn($n) => str_starts_with($n['type'], 'borrowing_'))->count(),
+            'system' => $collection->filter(fn($n) => str_starts_with($n['type'], 'system_'))->count(),
+        ];
+
+        return [
+            'total' => $total,
+            'unread' => $unread,
+            'read' => $read,
+            'by_category' => $byCategory,
+        ];
+    }
+
+        private function getStatistics($userId)
     {
         $total = Notification::forUser($userId)->count();
         $unread = Notification::forUser($userId)->unread()->count();
         $read = Notification::forUser($userId)->read()->count();
         
-        // Count by category
+        // Count by category - perbaiki query
         $userNotifications = Notification::forUser($userId)
-            ->whereIn('type', ['user_registered', 'user_profile_updated', 'user_deleted'])
+            ->where('type', 'like', 'user_%')
             ->count();
             
         $roomNotifications = Notification::forUser($userId)
-            ->whereIn('type', ['room_created', 'room_updated', 'room_deleted', 'room_maintenance', 'room_available'])
+            ->where('type', 'like', 'room_%')
             ->count();
             
         $borrowingNotifications = Notification::forUser($userId)
-            ->whereIn('type', ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted'])
+            ->where('type', 'like', 'borrowing_%')
             ->count();
             
+        // System termasuk semua yang dimulai dengan 'system_'
         $systemNotifications = Notification::forUser($userId)
-            ->whereIn('type', ['system_update', 'system_alert'])
+            ->where('type', 'like', 'system_%')
             ->count();
         
         return [
@@ -126,7 +202,6 @@ class NotificationController extends Controller
             ]
         ];
     }
-    
     private function getNotificationIcon($type)
     {
         $icons = [
@@ -147,11 +222,13 @@ class NotificationController extends Controller
             'borrowing_updated' => 'edit',
             'borrowing_deleted' => 'trash',
             'system_update' => 'info',
+            'system_maintenance' => 'tool', // ← Tambahkan ini
+            'system_alert' => 'alert-triangle', // ← Tambahkan ini
         ];
         
         return $icons[$type] ?? 'bell';
     }
-    
+        
     private function getNotificationColor($type)
     {
         $colors = [
@@ -172,11 +249,13 @@ class NotificationController extends Controller
             'borrowing_updated' => 'blue',
             'borrowing_deleted' => 'gray',
             'system_update' => 'blue',
+            'system_maintenance' => 'orange', // ← Tambahkan ini
+            'system_alert' => 'yellow', // ← Tambahkan ini
         ];
         
         return $colors[$type] ?? 'gray';
     }
-    
+        
     private function getNotificationCategory($type)
     {
         if (str_starts_with($type, 'user_')) return 'user';
@@ -196,17 +275,26 @@ class NotificationController extends Controller
     }
 
     public function markAsRead($id)
-    {
-        $user = Auth::user();
-        
-        $notification = Notification::forUser($user->id)->findOrFail($id);
-        $notification->markAsRead();
+{
+    $user = Auth::user();
 
+    // only allow numeric DB ids
+    if (!is_numeric($id)) {
         return response()->json([
-            'success' => true,
-            'message' => 'Notifikasi telah ditandai sebagai dibaca'
-        ]);
+            'success' => false,
+            'message' => 'Notifikasi tidak dapat ditandai (synthetic / non-db).'
+        ], 422);
     }
+
+    $notification = Notification::forUser($user->id)->findOrFail($id);
+    $notification->markAsRead();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Notifikasi telah ditandai sebagai dibaca'
+    ]);
+}
+
 
     public function markAllAsRead()
     {
@@ -266,45 +354,41 @@ class NotificationController extends Controller
         ]);
     }
     
-    public function statistics()
+    public function statistics(Request $request)
     {
         $user = Auth::user();
-        
-        $total = Notification::forUser($user->id)->count();
-        $unread = Notification::forUser($user->id)->unread()->count();
-        $read = Notification::forUser($user->id)->read()->count();
-        
-        // Count by category
-        $userNotifications = Notification::forUser($user->id)
-            ->whereIn('type', ['user_registered', 'user_profile_updated', 'user_deleted'])
-            ->count();
-            
-        $roomNotifications = Notification::forUser($user->id)
-            ->whereIn('type', ['room_created', 'room_updated', 'room_deleted', 'room_maintenance', 'room_available'])
-            ->count();
-            
-        $borrowingNotifications = Notification::forUser($user->id)
-            ->whereIn('type', ['borrowing_created', 'borrowing_approved', 'borrowing_rejected', 'borrowing_cancelled', 'borrowing_completed', 'borrowing_reminder', 'borrowing_updated', 'borrowing_deleted'])
-            ->count();
-            
-        $systemNotifications = Notification::forUser($user->id)
-            ->whereIn('type', ['system_update', 'system_alert'])
-            ->count();
-        
-        return response()->json([
-            'total' => $total,
-            'unread' => $unread,
-            'read' => $read,
-            'by_category' => [
-                'user' => $userNotifications,
-                'room' => $roomNotifications,
-                'borrowing' => $borrowingNotifications,
-                'system' => $systemNotifications,
-            ]
-        ]);
+
+        // DB rows
+        $dbNotifications = Notification::forUser($user->id)->get()->map(function ($n) {
+            return [
+                'id' => (string) $n->id,
+                'type' => $n->type,
+                'read_at' => $n->read_at ? $n->read_at->toDateTimeString() : null,
+                'created_at' => $n->created_at ? $n->created_at->toDateTimeString() : now()->toDateTimeString(),
+            ];
+        })->toArray();
+
+        // synthetic
+        $synthetic = $this->getUserNotifications($user);
+        // normalize synthetic very lightly: ensure created_at & read_at exist
+        $normalizedSynth = array_map(function($s) {
+            return [
+                'id' => (string) ($s['id'] ?? 's_'.uniqid()),
+                'type' => $s['type'] ?? 'system_update',
+                'read_at' => $s['read_at'] ?? null,
+                'created_at' => $s['created_at'] ?? ($s['timestamp'] ?? now()->toDateTimeString()),
+            ];
+        }, $synthetic);
+
+        $merged = collect(array_merge($dbNotifications, $normalizedSynth));
+
+        $stats = $this->computeStatisticsFromCollection($merged, $user->id);
+
+        return response()->json($stats);
     }
 
-    private function getUserNotifications($user)
+
+   private function getUserNotifications($user)
     {
         $notifications = [];
 
@@ -321,130 +405,143 @@ class NotificationController extends Controller
         // Notifications for all users
         $notifications = array_merge($notifications, $this->getUserSpecificNotifications($user));
 
-        // Sort by timestamp (newest first)
+        // Ensure every synthetic notification has a created_at (normalize keys)
+        foreach ($notifications as &$n) {
+            // If created_at not present but timestamp exists, map it
+            if (!isset($n['created_at']) && isset($n['timestamp'])) {
+                $n['created_at'] = $n['timestamp'];
+            }
+
+            // If still not present, set now as fallback
+            if (!isset($n['created_at'])) {
+                $n['created_at'] = now()->toDateTimeString();
+            }
+        }
+        unset($n);
+
+        // Sort by created_at (newest first) — safe because we normalized above
         usort($notifications, function ($a, $b) {
-            return strtotime($b['timestamp']) - strtotime($a['timestamp']);
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
         });
 
         return array_slice($notifications, 0, 20); // Limit to 20 notifications
     }
 
-    private function getSuperAdminNotifications()
+
+  private function getSuperAdminNotifications()
     {
-        $notifications = [];
+    $notifications = [];
 
-        // System health alerts
-        $systemAlerts = $this->getSystemHealthAlerts();
-        foreach ($systemAlerts as $alert) {
-            $notifications[] = [
-                'id' => 'system_' . uniqid(),
-                'type' => 'system',
-                'title' => $alert['title'],
-                'message' => $alert['message'],
-                'timestamp' => now()->subMinutes(rand(1, 60))->toISOString(),
-                'read' => false,
-                'priority' => $alert['priority'],
-                'action_url' => $alert['action_url'] ?? null,
-            ];
-        }
+    // System health alerts
+    $systemAlerts = $this->getSystemHealthAlerts();
+    foreach ($systemAlerts as $alert) {
+        $notifications[] = [
+            'id' => 'system_' . uniqid(),
+            'type' => 'system_alert', // standardized
+            'title' => $alert['title'],
+            'message' => $alert['message'],
+            'created_at' => now()->subMinutes(rand(1, 60))->toDateTimeString(),
+            'read_at' => null,
+            'priority' => $alert['priority'],
+            'data' => ['action_url' => $alert['action_url'] ?? null],
+        ];
+    }
 
-        // New user registrations
-        $newUsers = User::where('created_at', '>=', now()->subDays(7))->count();
+            // New user registrations
+            $newUsers = User::where('created_at', '>=', now()->subDays(7))->count();
         if ($newUsers > 0) {
             $notifications[] = [
                 'id' => 'new_users_' . uniqid(),
-                'type' => 'user',
+                'type' => 'user_registered', // standardized
                 'title' => 'Pengguna Baru Terdaftar',
                 'message' => "{$newUsers} pengguna baru telah mendaftar dalam 7 hari terakhir",
-                'timestamp' => now()->subHours(2)->toISOString(),
-                'read' => false,
+                'created_at' => now()->subHours(2)->toDateTimeString(),
+                'read_at' => null,
                 'priority' => 'info',
-                'action_url' => '/Users',
+                'data' => ['action_url' => '/Users'],
             ];
         }
 
-        return $notifications;
+                return $notifications;
+        }
+    private function getAdminNotifications()
+{
+    $notifications = [];
+
+    $pendingCount = Borrowing::where('status', 'pending')->count();
+    if ($pendingCount > 0) {
+        $notifications[] = [
+            'id' => 'pending_approvals_' . uniqid(),
+            'type' => 'borrowing_pending', // standardized borrowing_*
+            'title' => 'Persetujuan Menunggu',
+            'message' => "{$pendingCount} peminjaman menunggu persetujuan Anda",
+            'created_at' => now()->subMinutes(30)->toDateTimeString(),
+            'read_at' => null,
+            'priority' => 'high',
+            'data' => ['action_url' => '/Approvals'],
+        ];
     }
 
-    private function getAdminNotifications()
-    {
-        $notifications = [];
-
-        // Pending approvals
-        $pendingCount = Borrowing::where('status', 'pending')->count();
-        if ($pendingCount > 0) {
-            $notifications[] = [
-                'id' => 'pending_approvals_' . uniqid(),
-                'type' => 'approval',
-                'title' => 'Persetujuan Menunggu',
-                'message' => "{$pendingCount} peminjaman menunggu persetujuan Anda",
-                'timestamp' => now()->subMinutes(30)->toISOString(),
-                'read' => false,
-                'priority' => 'high',
-                'action_url' => '/Approvals',
-            ];
-        }
-
         // Overdue returns
-        $overdueCount = Borrowing::where('status', 'active')
-            ->where('planned_return_at', '<', now())
-            ->count();
-        if ($overdueCount > 0) {
-            $notifications[] = [
-                'id' => 'overdue_returns_' . uniqid(),
-                'type' => 'warning',
-                'title' => 'Peminjaman Terlambat',
-                'message' => "{$overdueCount} ruangan belum dikembalikan sesuai jadwal",
-                'timestamp' => now()->subHours(1)->toISOString(),
-                'read' => false,
-                'priority' => 'high',
-                'action_url' => '/Borrowings?filter=overdue',
-            ];
-        }
+       
+    $overdueCount = Borrowing::where('status', 'active')
+        ->where('planned_return_at', '<', now())
+        ->count();
+    if ($overdueCount > 0) {
+        $notifications[] = [
+            'id' => 'overdue_returns_' . uniqid(),
+            'type' => 'borrowing_overdue',
+            'title' => 'Peminjaman Terlambat',
+            'message' => "{$overdueCount} ruangan belum dikembalikan sesuai jadwal",
+            'created_at' => now()->subHours(1)->toDateTimeString(),
+            'read_at' => null,
+            'priority' => 'high',
+            'data' => ['action_url' => '/Borrowings?filter=overdue'],
+        ];
+    }
 
         // Rooms in maintenance
-        $maintenanceCount = Room::where('status', 'maintenance')->count();
+    $maintenanceCount = Room::where('status', 'maintenance')->count();
         if ($maintenanceCount > 0) {
             $notifications[] = [
                 'id' => 'maintenance_rooms_' . uniqid(),
-                'type' => 'maintenance',
+                'type' => 'room_maintenance',
                 'title' => 'Ruangan Maintenance',
                 'message' => "{$maintenanceCount} ruangan sedang dalam perbaikan",
-                'timestamp' => now()->subHours(3)->toISOString(),
-                'read' => false,
+                'created_at' => now()->subHours(3)->toDateTimeString(),
+                'read_at' => null,
                 'priority' => 'medium',
-                'action_url' => '/Rooms?status=maintenance',
+                'data' => ['action_url' => '/Rooms?status=maintenance'],
             ];
         }
 
         return $notifications;
     }
 
-    private function getUserSpecificNotifications($user)
+   private function getUserSpecificNotifications($user)
     {
-        $notifications = [];
+    $notifications = [];
 
-        // User's recent booking updates
-        $recentBookings = Borrowing::where('user_id', $user->id)
-            ->where('updated_at', '>=', now()->subDays(3))
-            ->where('status', '!=', 'pending')
-            ->get();
+    $recentBookings = Borrowing::where('user_id', $user->id)
+        ->where('updated_at', '>=', now()->subDays(3))
+        ->where('status', '!=', 'pending')
+        ->get();
 
-        foreach ($recentBookings as $booking) {
-            $notifications[] = [
-                'id' => 'booking_' . $booking->id,
-                'type' => 'booking',
-                'title' => $this->getBookingNotificationTitle($booking->status),
-                'message' => "Peminjaman ruang {$booking->room->name} telah {$this->getBookingStatusText($booking->status)}",
-                'timestamp' => $booking->updated_at->toISOString(),
-                'read' => false,
-                'priority' => 'medium',
-                'action_url' => "/Borrowings/{$booking->id}",
-            ];
-        }
+    foreach ($recentBookings as $booking) {
+        $notifications[] = [
+            'id' => 'booking_' . $booking->id,
+            'type' => 'borrowing_updated',
+            'title' => $this->getBookingNotificationTitle($booking->status),
+            'message' => "Peminjaman ruang {$booking->room->name} telah {$this->getBookingStatusText($booking->status)}",
+            'created_at' => $booking->updated_at ? $booking->updated_at->toDateTimeString() : now()->toDateTimeString(),
+            'read_at' => null,
+            'priority' => 'medium',
+            'data' => ['action_url' => "/Borrowings/{$booking->id}", 'borrowing_id' => $booking->id],
+        ];
+    }
 
         // Upcoming bookings reminder
-        $upcomingBookings = Borrowing::where('user_id', $user->id)
+            $upcomingBookings = Borrowing::where('user_id', $user->id)
             ->where('status', 'approved')
             ->where('borrowed_at', '>=', now())
             ->where('borrowed_at', '<=', now()->addDay())
@@ -454,13 +551,13 @@ class NotificationController extends Controller
             $timeUntil = Carbon::parse($booking->borrowed_at)->diffForHumans();
             $notifications[] = [
                 'id' => 'reminder_' . $booking->id,
-                'type' => 'reminder',
+                'type' => 'borrowing_reminder',
                 'title' => 'Pengingat Peminjaman',
                 'message' => "Peminjaman ruang {$booking->room->name} dimulai {$timeUntil}",
-                'timestamp' => now()->subMinutes(15)->toISOString(),
-                'read' => false,
+                'created_at' => now()->subMinutes(15)->toDateTimeString(),
+                'read_at' => null,
                 'priority' => 'high',
-                'action_url' => "/Borrowings/{$booking->id}",
+                'data' => ['action_url' => "/Borrowings/{$booking->id}", 'borrowing_id' => $booking->id],
             ];
         }
 

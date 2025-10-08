@@ -21,10 +21,6 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        // Tambahkan avatar_url agar frontend tidak perlu membangun sendiri
-        $user->avatar_url = $user->avatar
-            ? asset('storage/' . $user->avatar)
-            : null;
 
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $user instanceof MustVerifyEmail,

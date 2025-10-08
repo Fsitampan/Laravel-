@@ -22,69 +22,51 @@ class RoomController extends Controller
     /**
      * Display a listing of the rooms.
      */
-      public function index(Request $request): Response
+     public function index(Request $request): Response
     {
         $query = Room::query();
 
-        // optional: filter by search if you want
+        // 🔎 Filter by search
         if ($request->filled('search')) {
             $q = $request->input('search');
             $query->where(function ($qq) use ($q) {
                 $qq->where('name', 'like', "%{$q}%")
-                   ->orWhere('code', 'like', "%{$q}%")
-                   ->orWhere('description', 'like', "%{$q}%")
-                   ->orWhere('location', 'like', "%{$q}%");
+                ->orWhere('code', 'like', "%{$q}%")
+                ->orWhere('description', 'like', "%{$q}%")
+                ->orWhere('location', 'like', "%{$q}%");
             });
         }
-
-        // 1. Menggunakan query yang sudah efisien
-        $rooms = $query
-            ->withCount(['borrowings' => fn($q) => $q->where('status', 'active')])
-            ->with('currentBorrowing.user') 
-            ->orderBy('name')
-            ->paginate(9)
-            // 2. PASTIKAN BLOK ->through() INI ADA DAN LENGKAP
-            ->through(function ($room) {
-                $currentBorrowing = $room->currentBorrowing;
-
-                return [
-                    'id' => $room->id,
-                    'name' => $room->name,
-                    'full_name' => $room->full_name,
-                    'code' => $room->code,
-                    'description' => $room->description,
-                    'capacity' => $room->capacity,
-                    'location' => $room->location,
-                    'status' => $room->status,
-                    'facilities' => $room->facilities,
-                    'borrowings_count' => $room->borrowings_count,
-                    'image' => $room->image, // Tetap kirim path mentah untuk form edit
-                    'image_url' => $room->image_url, // Laravel akan otomatis memanggil accessor getImageUrlAttribute
-                    // current borrowing yang disederhanakan untuk frontend
-                    'current_borrowing' => $currentBorrowing ? [
-                        'id' => $currentBorrowing->id,
-                        'borrower_name' => $currentBorrowing->borrower_name,
-                        'user_name' => $currentBorrowing->user?->name ?? null,
-                        'borrowed_at' => $currentBorrowing->borrowed_at ?? null,
-                        'planned_return_at' => $currentBorrowing->planned_return_at ?? null,
-                        'purpose' => $currentBorrowing->purpose ?? null,
-                    ] : null,
-
-                    'created_at' => $room->created_at,
-                    'updated_at' => $room->updated_at,
-                ];
-            })
-            ->withQueryString();
-
-        return Inertia::render('Rooms/Index', [
-            'rooms' => $rooms,
-            'filters' => [
-                'search' => $request->input('search'),
-            ],
-            'can_manage' => auth()->user()->role === 'admin' || auth()->user()->role === 'super-admin',
-            'can_delete' => auth()->user()->role === 'super-admin',
-        ]);
+            if ($request->filled('status') && $request->status !== 'all') {
+        $statusMap = [
+            'available' => \App\Enums\RoomStatus::TERSEDIA,
+            'occupied' => \App\Enums\RoomStatus::DIPAKAI,
+            'maintenance' => \App\Enums\RoomStatus::PEMELIHARAAN,
+        ];
+        if (isset($statusMap[$request->status])) {
+            $query->where('status', $statusMap[$request->status]);
+        }
     }
+
+        // 🔄 Ambil data dengan relasi currentBorrowing
+     $rooms = $query
+    ->with(['currentBorrowing.user'])
+    ->orderBy('name')
+    ->paginate(9);
+
+    foreach ($rooms as $room) {
+        $room->refreshRoomStatus();
+    }
+
+    return Inertia::render('Rooms/Index', [
+        'rooms' => $rooms->through(fn($room) => $room->toInertiaArray()),
+        'filters' => [
+            'search' => $request->input('search'),
+        ],
+        'can_manage' => auth()->user()->role === 'admin' || auth()->user()->role === 'super-admin',
+        'can_delete' => auth()->user()->role === 'super-admin',
+    ]);
+        }
+
 
     /**
      * Show the form for creating a new room.

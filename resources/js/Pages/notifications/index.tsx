@@ -34,6 +34,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+const getCsrfToken = (): string => {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    if (!token) {
+        console.error('CSRF token not found');
+        return '';
+    }
+    return token;
+};
+
 // Types
 interface NotificationData {
     id: number;
@@ -103,6 +112,8 @@ const getNotificationIcon = (type: string) => {
         'borrowing_updated': Edit,
         'borrowing_deleted': Trash2,
         'system_update': Info,
+        'system_maintenance': AlertTriangle, // ← Tambahkan ini
+        'system_alert': AlertTriangle, // ← Tambahkan ini
     };
     return iconMap[type] || Bell;
 };
@@ -114,28 +125,30 @@ const getNotificationTypeColor = (type: string) => {
     return 'gray';
 };
 
-const getNotificationTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-        'user_registered': 'Pengguna Baru',
-        'user_profile_updated': 'Profil Diperbarui',
-        'user_deleted': 'Pengguna Dihapus',
-        'room_created': 'Ruangan Dibuat',
-        'room_updated': 'Ruangan Diperbarui',
-        'room_deleted': 'Ruangan Dihapus',
-        'room_maintenance': 'Maintenance',
-        'room_available': 'Ruangan Tersedia',
-        'borrowing_created': 'Peminjaman Baru',
-        'borrowing_approved': 'Disetujui',
-        'borrowing_rejected': 'Ditolak',
-        'borrowing_cancelled': 'Dibatalkan',
-        'borrowing_completed': 'Selesai',
-        'borrowing_reminder': 'Pengingat',
-        'borrowing_updated': 'Diperbarui',
-        'borrowing_deleted': 'Dihapus',
-        'system_update': 'Pembaruan Sistem',
+    const getNotificationTypeLabel = (type: string) => {
+        const labels: Record<string, string> = {
+            'user_registered': 'Pengguna Baru',
+            'user_profile_updated': 'Profil Diperbarui',
+            'user_deleted': 'Pengguna Dihapus',
+            'room_created': 'Ruangan Dibuat',
+            'room_updated': 'Ruangan Diperbarui',
+            'room_deleted': 'Ruangan Dihapus',
+            'room_maintenance': 'Maintenance',
+            'room_available': 'Ruangan Tersedia',
+            'borrowing_created': 'Peminjaman Baru',
+            'borrowing_approved': 'Disetujui',
+            'borrowing_rejected': 'Ditolak',
+            'borrowing_cancelled': 'Dibatalkan',
+            'borrowing_completed': 'Selesai',
+            'borrowing_reminder': 'Pengingat',
+            'borrowing_updated': 'Diperbarui',
+            'borrowing_deleted': 'Dihapus',
+            'system_update': 'Pembaruan Sistem',
+            'system_maintenance': 'Pemeliharaan Sistem', // ← Tambahkan ini
+            'system_alert': 'Peringatan Sistem', // ← Tambahkan ini
+        };
+        return labels[type] || type;
     };
-    return labels[type] || type;
-};
 
 // Empty state component
 const EmptyState = ({ message }: { message: string }) => (
@@ -238,15 +251,19 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
     // Fetch notifications and stats
     const fetchNotifications = async () => {
         setLoading(true);
-        try {
-            const response = await fetch('/Notifications', {
+            try {
+            const response = await fetch('/api/notifications', {
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
                 },
             });
+            if (!response.ok) {
+                const txt = await response.text();
+                throw new Error(`HTTP ${response.status}: ${txt}`);
+            }
             const data = await response.json();
             setNotifications(data.notifications || []);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching notifications:', error);
             toast.error('Gagal memuat notifikasi');
         } finally {
@@ -254,13 +271,17 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
         }
     };
 
-    const fetchStats = async () => {
+      const fetchStats = async () => {
         try {
-            const response = await fetch('/Notifications/statistics', {
+            const response = await fetch('/api/notifications/statistics', {
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
                 },
             });
+            if (!response.ok) {
+                const txt = await response.text();
+                throw new Error(`HTTP ${response.status}: ${txt}`);
+            }
             const data = await response.json();
             setStats(data);
         } catch (error) {
@@ -268,22 +289,33 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
         }
     };
 
+    // Dipanggil saat mount
+    useEffect(() => {
+        fetchNotifications();
+        fetchStats();
+    }, []);
+
     // Mark as read
-    const handleMarkAsRead = async (id: number) => {
+    const handleMarkAsRead = async (id: number | string) => {
         try {
-            await fetch(`/Notifications/${id}/read`, {
+            const response = await fetch(`/api/notifications/${id}/mark-read`, {
                 method: 'PATCH',
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                    'Accept': 'application/json',
                 },
             });
-            
+
+            if (!response.ok) {
+                const txt = await response.text();
+                throw new Error(`HTTP ${response.status}: ${txt}`);
+            }
+
             setNotifications(prev =>
                 prev.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n)
             );
-            fetchStats();
+            await fetchStats();
             toast.success('Notifikasi ditandai sebagai dibaca');
         } catch (error) {
             console.error('Error marking as read:', error);
@@ -292,21 +324,26 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
     };
 
     // Mark all as read
-    const handleMarkAllAsRead = async () => {
+     const handleMarkAllAsRead = async () => {
         try {
-            await fetch('/Notifications/read-all', {
+            const response = await fetch('/api/notifications/mark-all-read', {
                 method: 'PATCH',
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                    'Accept': 'application/json',
                 },
             });
-            
+
+            if (!response.ok) {
+                const txt = await response.text();
+                throw new Error(`HTTP ${response.status}: ${txt}`);
+            }
+
             setNotifications(prev =>
                 prev.map(n => ({ ...n, read_at: new Date().toISOString() }))
             );
-            fetchStats();
+            await fetchStats();
             toast.success('Semua notifikasi ditandai sebagai dibaca');
         } catch (error) {
             console.error('Error marking all as read:', error);
@@ -315,7 +352,7 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
     };
 
     // Delete selected
-    const handleDeleteSelected = async () => {
+        const handleDeleteSelected = async () => {
         if (selectedNotifications.length === 0) {
             toast.error('Pilih notifikasi terlebih dahulu');
             return;
@@ -326,22 +363,23 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
         }
 
         try {
+            // opsi: panggil bulk-delete endpoint atau loop DELETE per id
             await Promise.all(
                 selectedNotifications.map(id =>
-                    fetch(`/Notifications/${id}`, {
+                    fetch(`/api/notifications/${id}`, {
                         method: 'DELETE',
                         headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'X-CSRF-TOKEN': getCsrfToken(),
+                            'Accept': 'application/json',
                         },
                     })
                 )
             );
-            
+
             setNotifications(prev => prev.filter(n => !selectedNotifications.includes(n.id)));
             setSelectedNotifications([]);
-            fetchStats();
+            await fetchStats();
             toast.success(`${selectedNotifications.length} notifikasi telah dihapus`);
         } catch (error) {
             console.error('Error deleting notifications:', error);
@@ -350,7 +388,7 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
     };
 
     // Filter notifications
-    const filteredNotifications = notifications.filter(n => {
+     const filteredNotifications = notifications.filter(n => {
         const matchesSearch = searchTerm === '' || 
             n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
             n.message.toLowerCase().includes(searchTerm.toLowerCase());
@@ -358,9 +396,10 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
     });
 
     const unreadNotifications = filteredNotifications.filter(n => !n.read_at);
-    const userNotifications = filteredNotifications.filter(n => n.type.startsWith('user_'));
-    const roomNotifications = filteredNotifications.filter(n => n.type.startsWith('room_'));
-    const borrowingNotifications = filteredNotifications.filter(n => n.type.startsWith('borrowing_'));
+    const userNotifications = filteredNotifications.filter(n => (n.type || '').toString().startsWith('user_'));
+    const roomNotifications = filteredNotifications.filter(n => (n.type || '').toString().startsWith('room_'));
+    const borrowingNotifications = filteredNotifications.filter(n => (n.type || '').toString().startsWith('borrowing_'));
+    const systemNotifications = filteredNotifications.filter(n => (n.type || '').toString().startsWith('system_'));
 
     // Select all handler
     const handleSelectAll = (notifs: NotificationData[]) => {
@@ -504,6 +543,10 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
                         <TabsTrigger value="borrowings">
                             <Calendar className="h-4 w-4 mr-1" />
                             Peminjaman ({borrowingNotifications.length})
+                        </TabsTrigger>
+                         <TabsTrigger value="system">
+                            <Info className="h-4 w-4 mr-1" />
+                            System ({systemNotifications.length})
                         </TabsTrigger>
                     </TabsList>
 
@@ -681,6 +724,41 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
                             <EmptyState message="Tidak ada notifikasi peminjaman" />
                         )}
                     </TabsContent>
+
+                     <TabsContent value="system" className="space-y-3">
+        {systemNotifications.length > 0 ? (
+            <>
+                <div className="flex items-center justify-between mb-3">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSelectAll(systemNotifications)}
+                    >
+                        {selectedNotifications.length === systemNotifications.length && systemNotifications.length > 0
+                            ? 'Batal Pilih'
+                            : 'Pilih Semua'}
+                    </Button>
+                </div>
+                {systemNotifications.map((notification) => (
+                    <NotificationItem
+                        key={notification.id}
+                        notification={notification}
+                        selected={selectedNotifications.includes(notification.id)}
+                        onSelect={(id) => {
+                            setSelectedNotifications(prev =>
+                                prev.includes(id)
+                                    ? prev.filter(n => n !== id)
+                                    : [...prev, id]
+                            );
+                        }}
+                        onMarkAsRead={handleMarkAsRead}
+                    />
+                ))}
+            </>
+        ) : (
+            <EmptyState message="Tidak ada notifikasi sistem" />
+        )}
+    </TabsContent>
                 </Tabs>
             </div>
         </AuthenticatedLayout>

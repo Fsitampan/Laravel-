@@ -271,4 +271,44 @@ class Borrowing extends Model
     {
         return $this->belongsTo(Borrowing::class);
     }
+        public function hasActiveBorrowing(): bool
+    {
+        return $this->borrowings()
+            ->whereIn('status', [
+                BorrowingStatus::APPROVED,
+                BorrowingStatus::ACTIVE
+            ])
+            ->where(function($query) {
+                $now = now();
+                $query->where('borrowed_at', '<=', $now)
+                    ->where('planned_return_at', '>', $now);
+            })
+            ->exists();
+    }
+    public function refreshStatus(): void
+    {
+        $now = now();
+
+        // Jika approved tapi belum mulai
+        if ($this->isApproved() && $this->borrowed_at > $now) {
+            $this->status = BorrowingStatus::APPROVED;
+        }
+
+        // Jika waktu mulai sudah lewat dan masih dalam periode peminjaman
+        if ($this->isApproved() && $this->borrowed_at <= $now && $this->planned_return_at > $now) {
+            $this->status = BorrowingStatus::ACTIVE;
+        }
+
+        // Jika sudah melewati waktu selesai
+        if (($this->isActive() || $this->isApproved()) && $this->planned_return_at <= $now) {
+            $this->status = BorrowingStatus::COMPLETED;
+            $this->actual_return_date = $now;
+            $this->room->update(['status' => \App\Enums\RoomStatus::TERSEDIA]);
+        }
+
+        $this->save();
+    }
+
+
 }
+

@@ -166,6 +166,24 @@ class Room extends Model
     {
         return $query->where('status', RoomStatus::PEMELIHARAAN);
     }
+    
+        public function refreshRoomStatus(): void
+    {
+        $borrowing = $this->currentBorrowing;
+
+        if ($borrowing) {
+            if ($borrowing->status->value === 'active') {
+                $this->status = \App\Enums\RoomStatus::DIPAKAI;
+            } elseif ($borrowing->status->value === 'approved') {
+                $this->status = \App\Enums\RoomStatus::TERSEDIA; // masih disetujui tapi belum mulai
+            }
+        } else {
+            $this->status = \App\Enums\RoomStatus::TERSEDIA;
+        }
+
+        $this->save();
+    }
+
 
     // For Inertia.js sharing
     public function toInertiaArray(): array
