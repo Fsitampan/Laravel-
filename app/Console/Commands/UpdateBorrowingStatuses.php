@@ -5,9 +5,10 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\Borrowing;
 use App\Models\BorrowingHistory;
+use App\Models\Room;
+use App\Enums\BorrowingStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use App\Enums\BorrowingStatus; 
 
 class UpdateBorrowingStatuses extends Command
 {
@@ -17,16 +18,16 @@ class UpdateBorrowingStatuses extends Command
     public function handle()
     {
         $now = Carbon::now();
-        $this->info("Running status update at: {$now}");
+        $this->info("⏳ Running auto status update at: {$now}");
 
         $startingBorrowings = collect();
         $endingBorrowings = collect();
 
         DB::transaction(function () use ($now, &$startingBorrowings, &$endingBorrowings) {
-            // 1. Ubah APPROVED → ACTIVE (waktu mulai sudah tiba, tapi belum lewat waktu selesai)
+            // ✅ 1. APPROVED → ACTIVE
             $startingBorrowings = Borrowing::where('status', BorrowingStatus::APPROVED)
                 ->where('borrowed_at', '<=', $now)
-                ->where('planned_return_at', '>', $now) // Pastikan belum lewat waktu selesai
+                ->where('planned_return_at', '>', $now)
                 ->with('room')
                 ->get();
 
@@ -34,13 +35,12 @@ class UpdateBorrowingStatuses extends Command
                 $oldStatus = $borrowing->status->value;
                 $borrowing->status = BorrowingStatus::ACTIVE;
                 $borrowing->save();
-                
-                // Update room status SAAT ACTIVE (bukan saat approved)
+
+                // Update room status
                 if ($borrowing->room) {
                     $borrowing->room->update(['status' => 'dipakai']);
                 }
-                
-                // Catat ke history
+
                 BorrowingHistory::create([
                     'borrowing_id' => $borrowing->id,
                     'action' => 'started',
@@ -50,11 +50,11 @@ class UpdateBorrowingStatuses extends Command
                     'performed_by' => null,
                     'performed_at' => now(),
                 ]);
-                
-                $this->info("✓ Borrowing #{$borrowing->id} started. Room #{$borrowing->room_id} is now occupied.");
+
+                $this->info("✓ Borrowing #{$borrowing->id} started. Room #{$borrowing->room_id} now in use.");
             }
 
-            // 2. Ubah ACTIVE → COMPLETED (waktu selesai sudah tiba)
+            // ✅ 2. ACTIVE → COMPLETED
             $endingBorrowings = Borrowing::where('status', BorrowingStatus::ACTIVE)
                 ->where('planned_return_at', '<=', $now)
                 ->with('room')
@@ -66,17 +66,14 @@ class UpdateBorrowingStatuses extends Command
                 $borrowing->actual_return_date = $now;
                 $borrowing->save();
 
-                // Cek apakah room masih ada peminjaman aktif lain
+                // Jika tidak ada peminjaman aktif lain, ubah ruangan jadi tersedia
                 $room = $borrowing->room;
                 if ($room && !$room->hasActiveBorrowing()) {
                     $room->status = 'tersedia';
                     $room->save();
                     $this->info("✓ Borrowing #{$borrowing->id} completed. Room #{$room->id} is now available.");
-                } else {
-                    $this->warn("⚠ Borrowing #{$borrowing->id} completed, but Room #{$room->id} has other active borrowings.");
                 }
-                
-                // Catat ke history
+
                 BorrowingHistory::create([
                     'borrowing_id' => $borrowing->id,
                     'action' => 'completed',
@@ -88,7 +85,7 @@ class UpdateBorrowingStatuses extends Command
                 ]);
             }
 
-            // 3. Handle APPROVED yang sudah lewat waktu selesai (tidak pernah dimulai)
+            // ✅ 3. APPROVED tapi sudah lewat waktu → COMPLETED
             $expiredApproved = Borrowing::where('status', BorrowingStatus::APPROVED)
                 ->where('planned_return_at', '<=', $now)
                 ->with('room')
@@ -106,7 +103,7 @@ class UpdateBorrowingStatuses extends Command
 
                 BorrowingHistory::create([
                     'borrowing_id' => $borrowing->id,
-                    'action' => 'expired',
+                    'action' => 'completed',
                     'old_status' => $oldStatus,
                     'new_status' => BorrowingStatus::COMPLETED->value,
                     'comment' => 'Peminjaman expired (tidak pernah dimulai)',
@@ -118,10 +115,7 @@ class UpdateBorrowingStatuses extends Command
             }
         });
 
-        $countStarted = $startingBorrowings->count();
-        $countEnded = $endingBorrowings->count();
-        
-        $this->info("Status update finished: {$countStarted} started, {$countEnded} completed.");
+        $this->info("✅ Finished. {$startingBorrowings->count()} started, {$endingBorrowings->count()} completed.");
         return Command::SUCCESS;
     }
 }

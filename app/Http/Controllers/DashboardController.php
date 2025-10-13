@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -70,20 +71,55 @@ class DashboardController extends Controller
             'total_users' => User::count(),
         ];
 
-        // Room utilization data (last 30 days)
+        // Room utilization data (last 30 days) - FIXED VERSION
         $roomUtilization = Room::withCount(['borrowings' => function ($query) {
             $query->where('created_at', '>=', now()->subDays(30));
         }])
+        ->with(['borrowings' => function ($query) {
+            $query->where('created_at', '>=', now()->subDays(30))
+                  ->select('room_id', 'start_time', 'end_time', 'borrow_date', 'return_date');
+        }])
         ->get()
         ->map(function ($room) {
-            $maxBookings = 30; // Assume max 1 booking per day for 30 days
-            $utilization = $maxBookings > 0 ? ($room->borrowings_count / $maxBookings) * 100 : 0;
+            // Calculate total hours used
+            $totalHours = 0;
+            
+            foreach ($room->borrowings as $borrowing) {
+                if ($borrowing->start_time && $borrowing->end_time) {
+                    // Parse waktu mulai dan selesai
+                    $startTime = Carbon::parse($borrowing->start_time);
+                    $endTime = Carbon::parse($borrowing->end_time);
+                    
+                    // Hitung durasi dalam jam
+                    $duration = $endTime->diffInHours($startTime, true);
+                    
+                    // Jika ada borrow_date dan return_date, hitung total hari
+                    if ($borrowing->borrow_date && $borrowing->return_date) {
+                        $borrowDate = Carbon::parse($borrowing->borrow_date);
+                        $returnDate = Carbon::parse($borrowing->return_date);
+                        $days = $returnDate->diffInDays($borrowDate) + 1; // +1 untuk menghitung hari pertama
+                        
+                        // Kalikan durasi harian dengan jumlah hari
+                        $duration = $duration * $days;
+                    }
+                    
+                    $totalHours += $duration;
+                }
+            }
+            
+            // Calculate utilization percentage
+            // Asumsi: 8 jam kerja per hari x 30 hari = 240 jam maksimal
+            $maxHours = 8 * 30; // 240 jam
+            $utilization = $maxHours > 0 ? ($totalHours / $maxHours) * 100 : 0;
             
             return [
                 'room_name' => $room->name,
+                'total_hours' => round($totalHours, 1),
                 'utilization' => min(round($utilization, 1), 100)
             ];
         })
+        ->sortByDesc('utilization')
+        ->values()
         ->toArray();
 
         // Monthly bookings trend (last 12 months)
@@ -117,7 +153,7 @@ class DashboardController extends Controller
         $recentRooms = Room::with(['currentBorrowing' => function ($query) {
             $query->where('status', 'active')
                   ->with('user')
-                  ->latest('created_at'); // Fallback to created_at until migration runs
+                  ->latest('created_at');
         }])
         ->orderBy('updated_at', 'desc')
         ->limit(6)
@@ -166,7 +202,7 @@ class DashboardController extends Controller
         // Active borrowings
         $activeBorrowings = Borrowing::with(['room', 'user'])
             ->where('status', 'active')
-            ->orderBy('created_at', 'desc') // Use created_at as fallback until migration runs
+            ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
 

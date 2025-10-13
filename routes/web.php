@@ -93,7 +93,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{room}/edit', [RoomController::class, 'edit'])
             ->middleware('role:admin,super-admin')
             ->name('edit');
-        Route::put('/{room}', [RoomController::class, 'update'])
+        Route::post('/{room}', [RoomController::class, 'update'])
             ->middleware('role:admin,super-admin')
             ->name('update');
         Route::delete('/{room}', [RoomController::class, 'destroy'])

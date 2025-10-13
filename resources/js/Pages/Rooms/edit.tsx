@@ -67,7 +67,6 @@ export default function EditRoom({ auth, room }: EditRoomPageProps) {
     const [imageError, setImageError] = useState<boolean>(false);
 
    const { data, setData, put, post, patch, processing, errors, reset } = useForm<Record<string, any>>({
-      _method: 'PUT',
       name: room.name,
       code: room.code || '',     
       full_name: room.full_name || '',
@@ -460,11 +459,13 @@ const clearImageFile = () => {
                                             ))}
                                         </div>
                                     </div>
-
-                                    <div>
-                                        <Label>Fasilitas Tambahan</Label>
-                                        <div className="space-y-2 mt-2">
-                                            {facilitiesList.filter((f: string) => !commonFacilities.includes(f)).map((facility: string, index: number) => (
+                            <div>
+                                <Label>Fasilitas Tambahan</Label>
+                                <div className="space-y-2 mt-2">
+                                    {facilitiesList.map((facility: string, index: number) => {
+                                        // Hanya render input untuk fasilitas yang bukan bagian dari fasilitas umum
+                                        if (!commonFacilities.includes(facility)) {
+                                            return (
                                                 <div key={index} className="flex items-center space-x-2">
                                                     <Input
                                                         type="text"
@@ -482,18 +483,21 @@ const clearImageFile = () => {
                                                         <Minus className="h-4 w-4" />
                                                     </Button>
                                                 </div>
-                                            ))}
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={addFacility}
-                                            >
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Tambah Fasilitas
-                                            </Button>
-                                        </div>
-                                    </div>
+                                            );
+                                        }
+                                        return null; // Jangan render apapun untuk fasilitas umum di bagian ini
+                                    })}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addFacility}
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Tambah Fasilitas
+                                    </Button>
+                                </div>
+                            </div>
                                 </CardContent>
                             </Card>
 

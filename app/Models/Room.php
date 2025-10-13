@@ -17,7 +17,7 @@ class Room extends Model
     protected $fillable = [
         'name', 'code', 'description', 'capacity', 'status',
         'location', 'facilities', 'notes', 'created_by', 'updated_by',
-        'image',
+        'image',  'is_active',
     ];
 
     // Correct casting property

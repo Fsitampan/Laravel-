@@ -4,38 +4,33 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-use App\Models\Borrowing;
-use App\Models\Room;
+use App\Console\Commands\UpdateBorrowingStatuses;
 
 class Kernel extends ConsoleKernel
 {
     /**
-     * Define your application's command schedule.
+     * Daftar command artisan custom.
+     */
+    protected $commands = [
+        UpdateBorrowingStatuses::class,
+    ];
+
+    /**
+     * Jadwal command otomatis.
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Jalankan setiap menit untuk menyinkronkan status ruangan dan peminjaman
-        $schedule->call(function () {
-            // Update status semua peminjaman
-            \App\Models\Borrowing::with('room')->get()->each(function ($borrowing) {
-                $borrowing->refreshStatus();
-            });
-
-            // Update status semua ruangan
-            \App\Models\Room::with('currentBorrowing')->get()->each(function ($room) {
-                $room->refreshRoomStatus();
-            });
-        })->everyMinute();
+        // Jalankan setiap 1 menit untuk update status otomatis
+        $schedule->command('borrowings:update-statuses')->everyMinute();
     }
 
     /**
-     * Register the commands for the application.
+     * Register file command tambahan.
      */
     protected function commands(): void
     {
         $this->load(__DIR__.'/Commands');
 
-        // File ini akan otomatis dipanggil jika kamu membuat command artisan khusus
         if (file_exists(base_path('routes/console.php'))) {
             require base_path('routes/console.php');
         }

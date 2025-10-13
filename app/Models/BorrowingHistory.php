@@ -109,4 +109,16 @@ class BorrowingHistory extends Model
             'created_at' => $this->created_at?->toISOString(),
         ];
     }
+
+        protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($history) {
+            if (!$history->performed_by && auth()->check()) {
+                $history->performed_by = auth()->id();
+            }
+        });
+    }
+
 }

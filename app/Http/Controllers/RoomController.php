@@ -53,10 +53,6 @@ class RoomController extends Controller
     ->orderBy('name')
     ->paginate(9);
 
-    foreach ($rooms as $room) {
-        $room->refreshRoomStatus();
-    }
-
     return Inertia::render('Rooms/Index', [
         'rooms' => $rooms->through(fn($room) => $room->toInertiaArray()),
         'filters' => [
@@ -203,23 +199,27 @@ class RoomController extends Controller
      * Update the specified room in storage.
      */
     public function update(UpdateRoomRequest $request, Room $room)
-    {
-        $data = $request->validated();
+{
+    $data = $request->validated();
 
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('rooms', 'public');
-            $data['image'] = $path;
-            $data['image_url'] = null;
-        } elseif ($request->filled('image_url')) {
-            $data['image_url'] = $request->input('image_url');
-            $data['image'] = null;
+    if ($request->hasFile('image')) {
+        // Hapus gambar lama jika ada
+        if ($room->image) {
+            Storage::disk('public')->delete($room->image);
         }
-
-        $room->update($data);
-
-        return redirect()->route('Rooms.Show', $room)
-            ->with('success', 'Ruangan berhasil diperbarui.');
+        $path = $request->file('image')->store('rooms', 'public');
+        $data['image'] = $path;
+        $data['image_url'] = null;
+    } elseif (empty($data['image'])) {
+        unset($data['image']);
     }
+
+    $room->update($data);
+
+    return redirect()->route('Rooms.Index') 
+        ->with('success', 'Ruangan berhasil diperbarui.');
+}
+
 
     /**
      * Update room status.
