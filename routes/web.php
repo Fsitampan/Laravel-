@@ -18,11 +18,6 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 | Web Routes - BPS Riau Room Management System
 |--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
 */
 
 // Welcome page
@@ -38,24 +33,27 @@ Route::get('/', function () {
 // Authenticated routes
 Route::middleware('auth')->group(function () {
 
-    // Notifications (Inertia page)
+    // ✅ Notification Routes (Inertia Page - hanya 1 group)
     Route::prefix('notifications')->name('notifications.')->group(function () {
-        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('/', [NotificationController::class, 'index'])->name('index');
         Route::patch('/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('markRead');
         Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('markAllRead');
+        Route::patch('/{id}/mark-unread', [NotificationController::class, 'markAsUnread'])->name('markUnread');
         Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('destroy');
-        Route::delete('/bulk-delete', [NotificationController::class, 'destroyAll'])->name('destroyAll');
+        Route::delete('/', [NotificationController::class, 'destroyAll'])->name('destroyAll');
     });
 
-    // Notifications API (JSON only)
-    Route::prefix('api')->group(function () {
-    Route::get('/notifications', [NotificationController::class, 'index']); // mengembalikan JSON jika url /api/...
-    Route::get('/notifications/statistics', [NotificationController::class, 'statistics']);
-    Route::patch('/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead']);
-    Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
-    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
-    Route::delete('/notifications/bulk-delete', [NotificationController::class, 'destroyAll']);
-});
+    // ✅ Notification API Routes (JSON only)
+    Route::prefix('api/notifications')->name('api.notifications.')->group(function () {
+        Route::get('/', [NotificationController::class, 'index'])->name('index');
+        Route::get('/statistics', [NotificationController::class, 'statistics'])->name('statistics');
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::patch('/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('mark-read');
+        Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('mark-all-read');
+        Route::patch('/{id}/mark-unread', [NotificationController::class, 'markAsUnread'])->name('mark-unread');
+        Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('destroy');
+        Route::delete('/', [NotificationController::class, 'destroyAll'])->name('destroy-all');
+    });
     
     // Dashboard routes with role-based redirection
     Route::get('/Dashboard', function () {
@@ -104,14 +102,6 @@ Route::middleware('auth')->group(function () {
             ->name('status.update');
     });
 
-    Route::prefix('notifications')->name('notifications.')->group(function () {
-    Route::get('/', [NotificationController::class, 'index'])->name('index');
-    Route::patch('/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('markRead');
-    Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('markAllRead');
-    Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('destroy');
-    Route::delete('/bulk-delete', [NotificationController::class, 'destroyAll'])->name('destroyAll');
-    });
-
     // Borrowing Management routes (Capital case)
     Route::prefix('Borrowings')->name('Borrowings.')->group(function () {
         Route::get('/', [BorrowingController::class, 'Index'])->name('Index');
@@ -137,7 +127,7 @@ Route::middleware('auth')->group(function () {
     // History Management routes (Capital case)
     Route::prefix('History')->name('history.')->group(function () {
         Route::get('/', [HistoryController::class, 'index'])->name('index');
-         Route::get('/{id}', [HistoryController::class, 'show'])->name('show');
+        Route::get('/{id}', [HistoryController::class, 'show'])->name('show');
         Route::get('/Export', [HistoryController::class, 'export'])->name('export');
         Route::get('/Analytics', [HistoryController::class, 'analytics'])
             ->middleware('role:admin,super-admin')

@@ -523,53 +523,58 @@ class NotificationController extends Controller
     }
 
     private function getUserSpecificNotifications($user)
-    {
-        $notifications = [];
+{
+    $notifications = [];
 
-        // Recent booking updates
-        $recentBookings = Borrowing::where('user_id', $user->id)
-            ->where('updated_at', '>=', now()->subDays(3))
-            ->where('status', '!=', 'pending')
-            ->with('room')
-            ->get();
+    // Recent booking updates
+    $recentBookings = Borrowing::where('user_id', $user->id)
+        ->where('updated_at', '>=', now()->subDays(3))
+        ->where('status', '!=', 'pending')
+        ->with('room')
+        ->get();
 
-        foreach ($recentBookings as $booking) {
-            $notifications[] = [
-                'id' => 'booking_' . $booking->id,
-                'type' => 'borrowing_' . $booking->status,
-                'title' => $this->getBookingNotificationTitle($booking->status),
-                'message' => "Peminjaman ruang {$booking->room->name} telah {$this->getBookingStatusText($booking->status)}",
-                'created_at' => $booking->updated_at ? $booking->updated_at->toDateTimeString() : now()->toDateTimeString(),
-                'read_at' => null,
-                'priority' => 'medium',
-                'data' => ['action_url' => "/Borrowings/{$booking->id}", 'borrowing_id' => $booking->id],
-            ];
-        }
-
-        // Upcoming bookings reminder
-        $upcomingBookings = Borrowing::where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->where('borrowed_at', '>=', now())
-            ->where('borrowed_at', '<=', now()->addDay())
-            ->with('room')
-            ->get();
-
-        foreach ($upcomingBookings as $booking) {
-            $timeUntil = Carbon::parse($booking->borrowed_at)->diffForHumans();
-            $notifications[] = [
-                'id' => 'reminder_' . $booking->id,
-                'type' => 'borrowing_reminder',
-                'title' => 'Pengingat Peminjaman',
-                'message' => "Peminjaman ruang {$booking->room->name} dimulai {$timeUntil}",
-                'created_at' => now()->subMinutes(15)->toDateTimeString(),
-                'read_at' => null,
-                'priority' => 'high',
-                'data' => ['action_url' => "/Borrowings/{$booking->id}", 'borrowing_id' => $booking->id],
-            ];
-        }
-
-        return $notifications;
+    foreach ($recentBookings as $booking) {
+        // ✅ Handle Enum: convert to string
+        $status = is_object($booking->status) && $booking->status instanceof \App\Enums\BorrowingStatus 
+            ? $booking->status->value 
+            : $booking->status;
+        
+        $notifications[] = [
+            'id' => 'booking_' . $booking->id,
+            'type' => 'borrowing_' . $status,
+            'title' => $this->getBookingNotificationTitle($status),
+            'message' => "Peminjaman ruang {$booking->room->name} telah {$this->getBookingStatusText($status)}",
+            'created_at' => $booking->updated_at ? $booking->updated_at->toDateTimeString() : now()->toDateTimeString(),
+            'read_at' => null,
+            'priority' => 'medium',
+            'data' => ['action_url' => "/Borrowings/{$booking->id}", 'borrowing_id' => $booking->id],
+        ];
     }
+
+    // Upcoming bookings reminder
+    $upcomingBookings = Borrowing::where('user_id', $user->id)
+        ->where('status', 'approved')
+        ->where('borrowed_at', '>=', now())
+        ->where('borrowed_at', '<=', now()->addDay())
+        ->with('room')
+        ->get();
+
+    foreach ($upcomingBookings as $booking) {
+        $timeUntil = Carbon::parse($booking->borrowed_at)->diffForHumans();
+        $notifications[] = [
+            'id' => 'reminder_' . $booking->id,
+            'type' => 'borrowing_reminder',
+            'title' => 'Pengingat Peminjaman',
+            'message' => "Peminjaman ruang {$booking->room->name} dimulai {$timeUntil}",
+            'created_at' => now()->subMinutes(15)->toDateTimeString(),
+            'read_at' => null,
+            'priority' => 'high',
+            'data' => ['action_url' => "/Borrowings/{$booking->id}", 'borrowing_id' => $booking->id],
+        ];
+    }
+
+    return $notifications;
+}
 
     private function getSystemHealthAlerts()
     {

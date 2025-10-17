@@ -34,7 +34,7 @@ class NotificationHelper
                 'type' => $type,
                 'title' => $title,
                 'message' => $message,
-                'data' => $data,
+                'data' => $data ? json_encode($data) : null,
                 'read_at' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -83,13 +83,15 @@ class NotificationHelper
     /**
      * Kirim notifikasi peminjaman ditolak ke user
      */
-    public static function notifyBorrowingRejected($borrowing)
+    public static function notifyBorrowingRejected($borrowing, $rejectionReason = null)
     {
+        $reason = $rejectionReason ?? $borrowing->rejection_reason ?? 'Tidak ada alasan yang diberikan';
+        
         return self::send(
             $borrowing->user_id,
             'borrowing_rejected',
             'Peminjaman Ditolak',
-            "Peminjaman ruang {$borrowing->room->name} telah ditolak. Alasan: {$borrowing->rejection_reason}",
+            "Peminjaman ruang {$borrowing->room->name} telah ditolak. Alasan: {$reason}",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
         );
     }

@@ -82,7 +82,7 @@ export default function AuthenticatedLayout({
       href: "/Approvals",
       icon: CheckSquare,
       adminOnly: true,
-      badge: 3,
+
     },
     { name: "Riwayat Peminjaman", href: "/History", icon: FileText },
     {

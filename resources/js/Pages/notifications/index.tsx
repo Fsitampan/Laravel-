@@ -352,35 +352,34 @@ export default function NotificationsIndex({ auth, initialNotifications, initial
     };
 
     // Delete selected
-        const handleDeleteSelected = async () => {
-        if (selectedNotifications.length === 0) {
-            toast.error('Pilih notifikasi terlebih dahulu');
+      // index.tsx -> handleDeleteSelected function
+
+    const handleDeleteSelected = async () => {
+        // Filter untuk hanya menghapus ID yang valid (numerik/dari DB)
+        const validIdsToDelete = selectedNotifications.filter(id => !isNaN(Number(id)));
+
+        if (validIdsToDelete.length === 0) {
+            toast.error('Pilih notifikasi yang valid untuk dihapus.');
             return;
         }
 
-        if (!confirm(`Hapus ${selectedNotifications.length} notifikasi yang dipilih?`)) {
+        if (!confirm(`Hapus ${validIdsToDelete.length} notifikasi yang dipilih?`)) {
             return;
         }
 
         try {
-            // opsi: panggil bulk-delete endpoint atau loop DELETE per id
             await Promise.all(
-                selectedNotifications.map(id =>
+                validIdsToDelete.map(id =>
                     fetch(`/api/notifications/${id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': getCsrfToken(),
-                            'Accept': 'application/json',
-                        },
+                        // ...
                     })
                 )
             );
 
-            setNotifications(prev => prev.filter(n => !selectedNotifications.includes(n.id)));
+            setNotifications(prev => prev.filter(n => !validIdsToDelete.includes(n.id)));
             setSelectedNotifications([]);
             await fetchStats();
-            toast.success(`${selectedNotifications.length} notifikasi telah dihapus`);
+            toast.success(`${validIdsToDelete.length} notifikasi telah dihapus`);
         } catch (error) {
             console.error('Error deleting notifications:', error);
             toast.error('Gagal menghapus notifikasi');

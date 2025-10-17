@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Borrowing;
 use App\Models\BorrowingHistory;
 use App\Enums\BorrowingStatus;
-use App\Enums\RoomStatus;
+use App\Helpers\NotificationHelper; // ✅ TAMBAHKAN INI
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB; // ← TAMBAHKAN INI
+use Illuminate\Support\Facades\DB;
 
 class ApprovalController extends Controller
 {
@@ -62,7 +62,7 @@ class ApprovalController extends Controller
             'approvals' => $pendingApprovals->through(fn($b) => $b->toInertiaArray()),
             'recent_decisions'  => $recentDecisions->map(fn($b) => $b->toInertiaArray()),
             'stats'             => $stats,
-            'filters'           => $request->only(['search', 'status']), // ← Perbaiki ini
+            'filters'           => $request->only(['search', 'status']),
         ]);
     }
 
@@ -75,7 +75,6 @@ class ApprovalController extends Controller
             return back()->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
         }
 
-        // Simpan status lama untuk history
         $oldStatus = $borrowing->status;
 
         DB::transaction(function () use ($borrowing, $request, $oldStatus) {
@@ -84,11 +83,8 @@ class ApprovalController extends Controller
                 'status' => BorrowingStatus::APPROVED,
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
-                'notes' => $request->admin_notes, // ← Gunakan 'notes' bukan 'admin_notes'
+                'notes' => $request->admin_notes,
             ]);
-
-            // JANGAN update room status di sini - biarkan command yang handle
-            // Room status akan berubah saat borrowing menjadi ACTIVE
 
             // Create history
             BorrowingHistory::create([
@@ -100,9 +96,15 @@ class ApprovalController extends Controller
                 'performed_by' => auth()->id(),
                 'performed_at' => now(),
             ]);
+
+            // ✅ Load relasi room untuk notifikasi
+            $borrowing->load('room');
+
+            // ✅ Kirim notifikasi ke user bahwa peminjaman disetujui
+            NotificationHelper::notifyBorrowingApproved($borrowing);
         });
 
-        return back()->with('success', 'Peminjaman berhasil disetujui.');
+        return back()->with('success', 'Peminjaman berhasil disetujui dan notifikasi telah dikirim.');
     }
 
     /**
@@ -124,7 +126,7 @@ class ApprovalController extends Controller
             $borrowing->update([
                 'status' => BorrowingStatus::REJECTED,
                 'rejection_reason' => $request->rejection_reason,
-                'notes' => $request->admin_notes, // ← Gunakan 'notes' bukan 'admin_notes'
+                'notes' => $request->admin_notes,
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
             ]);
@@ -138,9 +140,15 @@ class ApprovalController extends Controller
                 'performed_by' => auth()->id(),
                 'performed_at' => now(),
             ]);
+
+            // ✅ Load relasi room untuk notifikasi
+            $borrowing->load('room');
+
+            // ✅ Kirim notifikasi - pass rejection_reason sebagai parameter kedua
+            NotificationHelper::notifyBorrowingRejected($borrowing, $request->rejection_reason);
         });
 
-        return back()->with('success', 'Peminjaman berhasil ditolak.');
+        return back()->with('success', 'Peminjaman berhasil ditolak dan notifikasi telah dikirim.');
     }
 
     /**
