@@ -31,7 +31,6 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { cn, getUserInitials } from "@/lib/utils";
-import { BPSLogo } from "@/components/BPSLogo";
 import type { User, Notification } from "@/types";
 
 interface NavigationItem {
@@ -82,7 +81,6 @@ export default function AuthenticatedLayout({
       href: "/Approvals",
       icon: CheckSquare,
       adminOnly: true,
-
     },
     { name: "Riwayat Peminjaman", href: "/History", icon: FileText },
     {
@@ -90,12 +88,6 @@ export default function AuthenticatedLayout({
       href: "/users",
       icon: Users,
       superAdminOnly: true,
-    },
-    {
-      name: "Pengaturan Sistem",
-      href: "/Settings",
-      icon: Settings,
-      adminOnly: true,
     },
   ];
 
@@ -149,7 +141,14 @@ export default function AuthenticatedLayout({
           sidebarCollapsed && !mobile ? "px-4 py-5 justify-center" : "px-6 py-5"
         )}
       >
-        <BPSLogo size="lg" />
+        <img 
+          src="/bpslogo.png" 
+          alt="BPS Logo" 
+          className={cn(
+            "object-contain",
+            sidebarCollapsed && !mobile ? "h-8 w-8" : "h-10 w-10"
+          )}
+        />
         {(!sidebarCollapsed || mobile) && (
           <div className="ml-4">
             <h1 className="text-lg font-semibold text-gray-900">BPS Riau</h1>
@@ -183,12 +182,10 @@ export default function AuthenticatedLayout({
             <DropdownMenuTrigger asChild>
               <div className="flex items-center p-3 bg-white rounded-lg shadow-sm border cursor-pointer hover:bg-gray-50">
                 <Avatar className="h-10 w-10">
-                    {/* Tambahkan AvatarImage di sini */}
                     {user.avatar && (
                        <AvatarImage src={user.avatar} alt={user.name} />
                     )}
                     
-                    {/* AvatarFallback akan ditampilkan jika tidak ada foto */}
                     <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-medium">
                         {getUserInitials(user.name)}
                     </AvatarFallback>
@@ -363,74 +360,90 @@ export default function AuthenticatedLayout({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="relative">
-                    <Bell className="h-4 w-4" />
-                    {unread_count && unread_count > 0 && (
-                      <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                        {unread_count}
+                    <Bell className="h-5 w-5" />
+                    {unread_count > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                        {unread_count > 9 ? '9+' : unread_count}
                       </span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-80 max-h-96 overflow-y-auto"
+                  className="w-96 max-h-[32rem] overflow-y-auto"
                 >
-                  <DropdownMenuLabel>
-                    Notifikasi
-                    {unread_count && unread_count > 0 && (
-                      <span className="ml-2 bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">
+                  <DropdownMenuLabel className="flex items-center justify-between">
+                    <span>Notifikasi</span>
+                    {unread_count > 0 && (
+                      <Badge variant="destructive" className="ml-2">
                         {unread_count} baru
-                      </span>
+                      </Badge>
                     )}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {(!notifications || notifications.length === 0) && (
-                    <div className="p-4 text-center text-gray-500 text-sm">
-                      Tidak ada notifikasi baru
+                  
+                  {(!notifications || notifications.length === 0) ? (
+                    <div className="p-8 text-center">
+                      <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500 font-medium">Tidak ada notifikasi</p>
+                      <p className="text-xs text-gray-400 mt-1">Anda akan menerima notifikasi di sini</p>
                     </div>
-                  )}
-                  {notifications &&
-                    notifications.slice(0, 5).map((notification) => (
-                      <DropdownMenuItem
-                        key={notification.id}
-                        className={`flex items-start gap-2 py-2 px-2 rounded transition ${
-                          !notification.read_at ? "bg-blue-50" : ""
-                        }`}
-                        asChild
-                      >
-                        <Link href="/notifications">
-                          <div className="flex-shrink-0 mt-1">
-                            <Bell className="h-4 w-4 text-gray-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className={`text-xs font-medium ${
-                                !notification.read_at
-                                  ? "text-gray-900"
-                                  : "text-gray-700"
-                              }`}
-                            >
-                              {notification.title}
+                  ) : (
+                    <>
+                      {notifications.slice(0, 5).map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className={cn(
+                            "flex items-start gap-3 py-3 px-4 cursor-pointer",
+                            !notification.read_at && "bg-blue-50 hover:bg-blue-100"
+                          )}
+                          asChild
+                        >
+                          <Link href="/notifications">
+                            <div className="flex-shrink-0 mt-1">
+                              <div className={cn(
+                                "h-8 w-8 rounded-full flex items-center justify-center",
+                                !notification.read_at ? "bg-blue-100" : "bg-gray-100"
+                              )}>
+                                <Bell className={cn(
+                                  "h-4 w-4",
+                                  !notification.read_at ? "text-blue-600" : "text-gray-600"
+                                )} />
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500 truncate">
-                              {notification.message}
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <p className={cn(
+                                "text-sm font-medium leading-tight",
+                                !notification.read_at ? "text-gray-900" : "text-gray-700"
+                              )}>
+                                {notification.title}
+                              </p>
+                              <p className="text-xs text-gray-600 line-clamp-2">
+                                {notification.message}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                {notification.created_at}
+                              </p>
                             </div>
-                            <div className="text-[10px] text-gray-400">
-                              {notification.created_at}
-                            </div>
-                          </div>
+                            {!notification.read_at && (
+                              <div className="flex-shrink-0">
+                                <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
+                              </div>
+                            )}
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href="/notifications"
+                          className="w-full text-center text-blue-600 font-medium py-2"
+                        >
+                          Lihat semua notifikasi
                         </Link>
                       </DropdownMenuItem>
-                    ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="/notifications"
-                      className="w-full text-center text-blue-600"
-                    >
-                      Lihat semua notifikasi
-                    </Link>
-                  </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

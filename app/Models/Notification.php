@@ -180,12 +180,12 @@ class Notification extends Model
         ];
 
         $defaultMessages = [
-            'borrowing_created' => "Peminjaman ruangan {$borrowing->room->name} telah dibuat dan menunggu persetujuan",
-            'borrowing_approved' => "Peminjaman ruangan {$borrowing->room->name} telah disetujui",
-            'borrowing_rejected' => "Peminjaman ruangan {$borrowing->room->name} telah ditolak",
-            'borrowing_cancelled' => "Peminjaman ruangan {$borrowing->room->name} telah dibatalkan",
-            'borrowing_completed' => "Peminjaman ruangan {$borrowing->room->name} telah selesai",
-            'borrowing_reminder' => "Pengingat: Peminjaman ruangan {$borrowing->room->name} akan dimulai dalam 1 jam",
+            'borrowing_created' => "Peminjaman  {$borrowing->room->name} telah dibuat dan menunggu persetujuan",
+            'borrowing_approved' => "Peminjaman  {$borrowing->room->name} telah disetujui",
+            'borrowing_rejected' => "Peminjaman  {$borrowing->room->name} telah ditolak",
+            'borrowing_cancelled' => "Peminjaman  {$borrowing->room->name} telah dibatalkan",
+            'borrowing_completed' => "Peminjaman  {$borrowing->room->name} telah selesai",
+            'borrowing_reminder' => "Pengingat: Peminjaman  {$borrowing->room->name} akan dimulai dalam 1 jam",
         ];
 
         return static::createNotification(

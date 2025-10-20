@@ -3,7 +3,6 @@ import { PageProps } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BPSLogo } from '@/components/BPSLogo';
 import { 
     Building, 
     Users, 
@@ -79,8 +78,12 @@ export default function welcome({
                         <div className="flex justify-between items-center h-16">
                             {/* Logo */}
                             <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg">
-                                    <BPSLogo className="text-white" size="sm" />
+                                <div className="h-10 w-10 flex items-center justify-center">
+                                    <img 
+                                        src="/bpslogo.png" 
+                                        alt="BPS Logo" 
+                                        className="h-10 w-auto object-contain"
+                                    />
                                 </div>
                                 <div>
                                     <h1 className="font-bold text-gray-900">BPS Riau</h1>
@@ -127,8 +130,12 @@ export default function welcome({
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="text-center">
                             <div className="flex justify-center mb-8">
-                                <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-2xl">
-                                    <BPSLogo className="text-white" size="xl" />
+                                <div className="h-24 w-24 flex items-center justify-center">
+                                    <img 
+                                        src="/bpslogo.png" 
+                                        alt="BPS Logo" 
+                                        className="h-24 w-auto object-contain"
+                                    />
                                 </div>
                             </div>
                             
@@ -264,8 +271,12 @@ export default function welcome({
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex flex-col md:flex-row items-center justify-between">
                             <div className="flex items-center gap-3 mb-4 md:mb-0">
-                                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
-                                    <BPSLogo className="text-white" size="xl" />
+                                <div className="h-8 w-8 flex items-center justify-center">
+                                    <img 
+                                        src="/bpslogo.png" 
+                                        alt="BPS Logo" 
+                                        className="h-8 w-auto object-contain"
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="font-semibold">BPS Provinsi Riau</h3>

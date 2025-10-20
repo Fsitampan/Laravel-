@@ -61,7 +61,7 @@ class NotificationHelper
         return self::sendToAdmins(
             'borrowing_created',
             'Peminjaman Baru',
-            "Peminjaman ruang {$borrowing->room->name} oleh {$borrowing->borrower_name} menunggu persetujuan",
+            "Peminjaman {$borrowing->room->name} oleh {$borrowing->borrower_name} menunggu persetujuan",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Approvals"]
         );
     }
@@ -75,7 +75,7 @@ class NotificationHelper
             $borrowing->user_id,
             'borrowing_approved',
             'Peminjaman Disetujui',
-            "Peminjaman ruang {$borrowing->room->name} telah disetujui",
+            "Peminjaman  {$borrowing->room->name} telah disetujui",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
         );
     }
@@ -91,7 +91,7 @@ class NotificationHelper
             $borrowing->user_id,
             'borrowing_rejected',
             'Peminjaman Ditolak',
-            "Peminjaman ruang {$borrowing->room->name} telah ditolak. Alasan: {$reason}",
+            "Peminjaman  {$borrowing->room->name} telah ditolak. Alasan: {$reason}",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
         );
     }
@@ -105,7 +105,7 @@ class NotificationHelper
             $borrowing->user_id,
             'borrowing_updated',
             'Peminjaman Aktif',
-            "Peminjaman ruang {$borrowing->room->name} telah aktif",
+            "Peminjaman  {$borrowing->room->name} telah aktif",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
         );
     }
@@ -119,7 +119,7 @@ class NotificationHelper
             $borrowing->user_id,
             'borrowing_completed',
             'Peminjaman Selesai',
-            "Peminjaman ruang {$borrowing->room->name} telah selesai",
+            "Peminjaman  {$borrowing->room->name} telah selesai",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
         );
     }
@@ -133,7 +133,7 @@ class NotificationHelper
             $borrowing->user_id,
             'borrowing_reminder',
             'Pengingat Peminjaman',
-            "Peminjaman ruang {$borrowing->room->name} akan dimulai dalam 1 jam",
+            "Peminjaman  {$borrowing->room->name} akan dimulai dalam 1 jam",
             ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
         );
     }

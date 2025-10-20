@@ -33,24 +33,24 @@ Route::get('/', function () {
 // Authenticated routes
 Route::middleware('auth')->group(function () {
 
-    // ✅ Notification Routes (Inertia Page - hanya 1 group)
+    // ✅ FIXED: Notification Page Routes (Inertia - hanya untuk render halaman)
     Route::prefix('notifications')->name('notifications.')->group(function () {
         Route::get('/', [NotificationController::class, 'index'])->name('index');
-        Route::patch('/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('markRead');
-        Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('markAllRead');
-        Route::patch('/{id}/mark-unread', [NotificationController::class, 'markAsUnread'])->name('markUnread');
-        Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('destroy');
-        Route::delete('/', [NotificationController::class, 'destroyAll'])->name('destroyAll');
     });
 
-    // ✅ Notification API Routes (JSON only)
+    // ✅ FIXED: Notification API Routes (JSON - untuk AJAX calls)
     Route::prefix('api/notifications')->name('api.notifications.')->group(function () {
+        // GET routes
         Route::get('/', [NotificationController::class, 'index'])->name('index');
         Route::get('/statistics', [NotificationController::class, 'statistics'])->name('statistics');
         Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('unread-count');
+        
+        // PATCH routes (untuk mark as read/unread)
         Route::patch('/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('mark-read');
-        Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('mark-all-read');
         Route::patch('/{id}/mark-unread', [NotificationController::class, 'markAsUnread'])->name('mark-unread');
+        Route::patch('/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('mark-all-read');
+        
+        // DELETE routes (untuk hapus notifikasi)
         Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('destroy');
         Route::delete('/', [NotificationController::class, 'destroyAll'])->name('destroy-all');
     });
