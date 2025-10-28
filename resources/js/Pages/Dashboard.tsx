@@ -341,7 +341,7 @@ export default function Dashboard({
                             </Badge>
                         </div>
                         <p className="text-muted-foreground">
-                            Dashboard Sistem Manajemen Ruangan BPS Riau
+                            Dashboard Sistem Peminjaman Ruangan BPS Provinsi Riau
                         </p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Clock className="h-4 w-4" />

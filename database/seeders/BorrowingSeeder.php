@@ -44,31 +44,6 @@ class BorrowingSeeder extends Seeder
                 'recurring_end_date' => null,
             ],
 
-            // Pending Approval (Recurring Example)
-            [
-                'room_id' => 1,
-                'user_id' => 9,
-                'borrower_name' => 'Prof. Dr. Hendri Nelawan',
-                'borrower_email' => 'hendri.nelawan@unri.ac.id',
-                'borrower_phone' => '0761-567890',
-                'borrower_identification' => '1471050201750001',
-                'borrower_category' => 'tamu',
-                'borrower_department' => 'Universitas Riau - Fakultas Ekonomi',
-                'borrower_institution' => 'Universitas Riau',
-                'borrow_date' => Carbon::now()->addDays(3)->format('Y-m-d'),
-                'start_time' => '10:00',
-                'end_time' => '12:00',
-                'return_date' => Carbon::now()->addDays(3)->format('Y-m-d'),
-                'purpose' => 'Diskusi Kerjasama Penelitian Ekonomi Regional Riau',
-                'status' => 'pending',
-                'notes' => 'Meeting dengan Kepala BPS terkait penelitian',
-                'created_by' => 9,
-                'participant_count' => 20,
-                'equipment_needed' => ['whiteboard', 'LCD screen'],
-                'is_recurring' => true,
-                'recurring_pattern' => 'weekly',
-                'recurring_end_date' => Carbon::now()->addWeeks(4)->format('Y-m-d'),
-            ],
 
             // Completed Borrowing
             [
@@ -118,7 +93,7 @@ class BorrowingSeeder extends Seeder
                 'status' => 'rejected',
                 'approved_by' => 2,
                 'approved_at' => Carbon::now()->subDays(3)->setTime(14, 0),
-                'rejection_reason' => 'Ruang A khusus untuk pimpinan dan tamu VIP',
+                'rejection_reason' => 'Ruang Sungkai Akan dipinjam hari ini',
                 'notes' => 'Silakan gunakan ruang lain yang tersedia',
                 'created_by' => 12,
                 'participant_count' => 10,

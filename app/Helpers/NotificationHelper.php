@@ -4,163 +4,94 @@ namespace App\Helpers;
 
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\Borrowing;
 
 class NotificationHelper
 {
     /**
-     * Kirim notifikasi ke user
+     * Notifikasi saat peminjaman dibuat (ke admin)
      */
-    public static function send($userId, $type, $title, $message, $data = null)
+    public static function notifyBorrowingCreated(Borrowing $borrowing): void
     {
-        return Notification::create([
-            'user_id' => $userId,
-            'type' => $type,
-            'title' => $title,
-            'message' => $message,
-            'data' => $data,
-            'read_at' => null,
+        $admins = User::whereIn('role', ['admin', 'super-admin'])->get();
+        
+        foreach ($admins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'type' => 'borrowing_created',
+                'title' => 'Peminjaman Baru Menunggu Persetujuan',
+                'message' => "{$borrowing->borrower_name} mengajukan peminjaman {$borrowing->room->name}",
+                'data' => [
+                    'borrowing_id' => $borrowing->id,
+                    'room_name' => $borrowing->room->name,
+                    'borrower_name' => $borrowing->borrower_name,
+                    'action_url' => '/Approvals',
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Notifikasi saat peminjaman disetujui (ke user)
+     */
+    public static function notifyBorrowingApproved(Borrowing $borrowing): void
+    {
+        Notification::create([
+            'user_id' => $borrowing->user_id,
+            'type' => 'borrowing_approved',
+            'title' => 'Peminjaman Disetujui',
+            'message' => "Peminjaman {$borrowing->room->name} Anda telah disetujui",
+            'data' => [
+                'borrowing_id' => $borrowing->id,
+                'room_name' => $borrowing->room->name,
+                'action_url' => "/Borrowings/{$borrowing->id}",
+            ],
         ]);
     }
 
     /**
-     * Kirim notifikasi ke multiple users
+     * Notifikasi saat peminjaman ditolak (ke user)
      */
-    public static function sendToMany(array $userIds, $type, $title, $message, $data = null)
+    public static function notifyBorrowingRejected(Borrowing $borrowing, string $reason): void
     {
-        $notifications = [];
-        foreach ($userIds as $userId) {
-            $notifications[] = [
-                'user_id' => $userId,
-                'type' => $type,
-                'title' => $title,
-                'message' => $message,
-                'data' => $data ? json_encode($data) : null,
-                'read_at' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
+        Notification::create([
+            'user_id' => $borrowing->user_id,
+            'type' => 'borrowing_rejected',
+            'title' => 'Peminjaman Ditolak',
+            'message' => "Peminjaman {$borrowing->room->name} Anda ditolak. Alasan: {$reason}",
+            'data' => [
+                'borrowing_id' => $borrowing->id,
+                'room_name' => $borrowing->room->name,
+                'rejection_reason' => $reason,
+                'action_url' => "/Borrowings/{$borrowing->id}",
+            ],
+        ]);
+    }
+
+    /**
+     * ✅ FITUR BARU: Notifikasi saat peminjaman dibatalkan oleh user (ke admin)
+     */
+        /**
+     * ✅ PERBAIKAN: Type hint yang benar
+     */
+    public static function notifyBorrowingCancelled($borrowing, string $reason): void
+    {
+        $admins = User::whereIn('role', ['admin', 'super-admin'])->get();
+        
+        foreach ($admins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'type' => 'borrowing_cancelled',
+                'title' => 'Peminjaman Dibatalkan oleh User',
+                'message' => "{$borrowing->borrower_name} membatalkan peminjaman {$borrowing->room->name}. Alasan: {$reason}",
+                'data' => [
+                    'borrowing_id' => $borrowing->id,
+                    'room_name' => $borrowing->room->name,
+                    'borrower_name' => $borrowing->borrower_name,
+                    'cancellation_reason' => $reason,
+                    'action_url' => "/Borrowings/{$borrowing->id}",
+                ],
+            ]);
         }
-        
-        return Notification::insert($notifications);
-    }
-
-    /**
-     * Kirim notifikasi ke semua admin
-     */
-    public static function sendToAdmins($type, $title, $message, $data = null)
-    {
-        $adminIds = User::whereIn('role', ['admin', 'super-admin'])->pluck('id')->toArray();
-        return self::sendToMany($adminIds, $type, $title, $message, $data);
-    }
-
-    /**
-     * Kirim notifikasi peminjaman baru ke admin
-     */
-    public static function notifyBorrowingCreated($borrowing)
-    {
-        return self::sendToAdmins(
-            'borrowing_created',
-            'Peminjaman Baru',
-            "Peminjaman {$borrowing->room->name} oleh {$borrowing->borrower_name} menunggu persetujuan",
-            ['borrowing_id' => $borrowing->id, 'action_url' => "/Approvals"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi peminjaman disetujui ke user
-     */
-    public static function notifyBorrowingApproved($borrowing)
-    {
-        return self::send(
-            $borrowing->user_id,
-            'borrowing_approved',
-            'Peminjaman Disetujui',
-            "Peminjaman  {$borrowing->room->name} telah disetujui",
-            ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi peminjaman ditolak ke user
-     */
-    public static function notifyBorrowingRejected($borrowing, $rejectionReason = null)
-    {
-        $reason = $rejectionReason ?? $borrowing->rejection_reason ?? 'Tidak ada alasan yang diberikan';
-        
-        return self::send(
-            $borrowing->user_id,
-            'borrowing_rejected',
-            'Peminjaman Ditolak',
-            "Peminjaman  {$borrowing->room->name} telah ditolak. Alasan: {$reason}",
-            ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi peminjaman aktif ke user
-     */
-    public static function notifyBorrowingActive($borrowing)
-    {
-        return self::send(
-            $borrowing->user_id,
-            'borrowing_updated',
-            'Peminjaman Aktif',
-            "Peminjaman  {$borrowing->room->name} telah aktif",
-            ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi peminjaman selesai ke user
-     */
-    public static function notifyBorrowingCompleted($borrowing)
-    {
-        return self::send(
-            $borrowing->user_id,
-            'borrowing_completed',
-            'Peminjaman Selesai',
-            "Peminjaman  {$borrowing->room->name} telah selesai",
-            ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi pengingat peminjaman
-     */
-    public static function notifyBorrowingReminder($borrowing)
-    {
-        return self::send(
-            $borrowing->user_id,
-            'borrowing_reminder',
-            'Pengingat Peminjaman',
-            "Peminjaman  {$borrowing->room->name} akan dimulai dalam 1 jam",
-            ['borrowing_id' => $borrowing->id, 'action_url' => "/Borrowings/{$borrowing->id}"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi ruangan maintenance ke admin
-     */
-    public static function notifyRoomMaintenance($room)
-    {
-        return self::sendToAdmins(
-            'room_maintenance',
-            'Ruangan Maintenance',
-            "Ruang {$room->name} sedang dalam perbaikan",
-            ['room_id' => $room->id, 'action_url' => "/Rooms/{$room->id}"]
-        );
-    }
-
-    /**
-     * Kirim notifikasi user baru ke admin
-     */
-    public static function notifyUserRegistered($user)
-    {
-        return self::sendToAdmins(
-            'user_registered',
-            'Pengguna Baru Terdaftar',
-            "Pengguna baru {$user->name} telah terdaftar",
-            ['user_id' => $user->id, 'action_url' => "/users/{$user->id}"]
-        );
     }
 }

@@ -59,13 +59,10 @@ interface RoomsPageProps extends PageProps {
     filters: RoomFilters;
 }
 
-// Mock data untuk gambar ruangan - dalam production akan dari database
 // Ambil gambar dari database, fallback ke Unsplash
     const getRoomImage = (room: Room): string => {
      return room.image_url;
     };
-
-
 
 export default function RoomsIndex({ auth, rooms, filters }: RoomsPageProps) {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -143,7 +140,7 @@ export default function RoomsIndex({ auth, rooms, filters }: RoomsPageProps) {
             <Dialog open={isOpen} onOpenChange={onOpenChange}>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl">Ruang {room.name}</DialogTitle>
+                        <DialogTitle className="text-2xl"> {room.name}</DialogTitle>
                         <DialogDescription>
                             Detail lengkap ruangan dan fasilitasnya
                         </DialogDescription>

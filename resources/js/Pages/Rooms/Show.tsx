@@ -20,47 +20,42 @@ import {
     Wifi,
     Monitor,
     Volume2,
-    User,
-    Phone,
-    Mail,
     Camera,
     Eye,
     History,
-    Settings,
     Plus,
-    Activity
+    ImageIcon,
+    Phone,
+    Mail,
 } from 'lucide-react';
 import { cn, formatDateTime, getStatusColor, getStatusLabel, getUserInitials } from '@/lib/utils';
 import type { PageProps, Room } from '@/types';
 
 interface ShowRoomPageProps extends PageProps {
-    room: Room;
+    room: Room & {
+        image_url?: string;
+        layout_images?: string[];
+    };
+    stats?: {
+        total_bookings?: number;
+        active_bookings?: number;
+        completed_bookings?: number;
+        monthly_bookings?: number;
+    };
 }
 
-// Mock data untuk gambar ruangan - dalam production akan dari database
-const getRoomImage = (roomName: string): string => {
-    const imageMap: { [key: string]: string } = {
-        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIwcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaXNjdXNzaW9uJTIwcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdWRpdG9yaXVtJTIwc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-    };
-    
-    const roomCode = roomName.toUpperCase();
-    return imageMap[roomCode] || imageMap['A']; // Default fallback
-};
-
-export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
+export default function ShowRoom({ auth, room, stats }: ShowRoomPageProps) {
     const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
 
     const getStatusIcon = (status: string) => {
         switch (status) {
+            case 'tersedia':
             case 'available':
                 return <CheckCircle className="h-4 w-4" />;
+            case 'dipakai':
             case 'occupied':
                 return <Users className="h-4 w-4" />;
+            case 'pemeliharaan':
             case 'maintenance':
                 return <Wrench className="h-4 w-4" />;
             default:
@@ -69,20 +64,17 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
     };
 
     const getFacilityIcon = (facility: string) => {
-        const lowerFacility = facility.toLowerCase();
-        if (lowerFacility.includes('wifi') || lowerFacility.includes('internet')) {
-            return <Wifi className="h-4 w-4" />;
-        }
-        if (lowerFacility.includes('proyektor') || lowerFacility.includes('projector')) {
-            return <Monitor className="h-4 w-4" />;
-        }
-        if (lowerFacility.includes('sound') || lowerFacility.includes('audio') || lowerFacility.includes('microphone')) {
-            return <Volume2 className="h-4 w-4" />;
-        }
+        const lower = facility.toLowerCase();
+        if (lower.includes('wifi')) return <Wifi className="h-4 w-4" />;
+        if (lower.includes('proyektor') || lower.includes('projector')) return <Monitor className="h-4 w-4" />;
+        if (lower.includes('sound') || lower.includes('audio')) return <Volume2 className="h-4 w-4" />;
         return <Star className="h-4 w-4" />;
     };
 
-    const recentBookings = room.current_borrowing ? [room.current_borrowing] : [];
+    // ✅ Data sudah diproses di backend
+    const imageUrl = room.image_url || `https://placehold.co/800x600/e2e8f0/7c3aed?text=Ruang+${encodeURIComponent(room.name)}`;
+    const layoutImages = room.layout_images || [];
+    const facilities = Array.isArray(room.facilities) ? room.facilities : [];
 
     return (
         <AuthenticatedLayout user={auth.user}>
@@ -111,7 +103,7 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                        {room.status === 'tersedia' && (
+                        {room.status === 'tersedia' && room.is_active && (
                             <Button asChild>
                                 <Link href={`/Borrowings/Create?room=${room.id}`}>
                                     <Plus className="h-4 w-4 mr-2" />
@@ -137,9 +129,13 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                         <Card className="border-0 shadow-sm overflow-hidden">
                             <div className="relative h-64 sm:h-80">
                                 <img
-                                    src={getRoomImage(room.name)}
+                                    src={imageUrl}
                                     alt={`Preview Ruang ${room.name}`}
                                     className="w-full h-full object-cover"
+                                    onError={(e) => { 
+                                        (e.target as HTMLImageElement).src = 
+                                            `https://placehold.co/800x600/e2e8f0/7c3aed?text=Ruang+${encodeURIComponent(room.name)}`; 
+                                    }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                                 
@@ -172,6 +168,52 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                             </div>
                         </Card>
 
+                        {/* ✅ Layout Ruangan */}
+                        {layoutImages.length > 0 && (
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Camera className="h-5 w-5" />
+                                        Layout Ruangan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Terdapat {layoutImages.length} layout untuk ruangan ini
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {layoutImages.map((imageUrl, index) => (
+                                            <div key={index} className="relative group rounded-lg overflow-hidden border bg-muted hover:shadow-lg transition-shadow">
+                                                <img
+                                                    src={imageUrl}
+                                                    alt={`Layout ${index + 1}`}
+                                                    className="w-full h-40 object-cover transition-transform duration-300 group-hover:scale-105"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = 
+                                                            'https://placehold.co/400x300/e5e7eb/6b7280?text=Layout+' + (index + 1);
+                                                    }}
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="absolute bottom-2 left-2 right-2">
+                                                        <div className="flex items-center justify-between text-white text-sm">
+                                                            <span className="font-medium">Layout {index + 1}</span>
+                                                            <Eye className="h-4 w-4" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="absolute top-2 left-2">
+                                                    <Badge variant="secondary" className="text-xs bg-white/90">
+                                                        <ImageIcon className="h-3 w-3 mr-1" />
+                                                        {index + 1}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                        
                         {/* Room Details */}
                         <Card className="border-0 shadow-sm">
                             <CardHeader>
@@ -187,6 +229,10 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-4">
                                         <div>
+                                            <label className="text-sm font-medium text-gray-500">Kode Ruangan</label>
+                                            <p className="text-lg font-medium">{room.code}</p>
+                                        </div>
+                                        <div>
                                             <label className="text-sm font-medium text-gray-500">Nama Ruangan</label>
                                             <p className="text-lg font-medium">{room.name}</p>
                                         </div>
@@ -196,6 +242,8 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                                 <p className="text-lg">{room.full_name}</p>
                                             </div>
                                         )}
+                                    </div>
+                                    <div className="space-y-4">
                                         <div>
                                             <label className="text-sm font-medium text-gray-500">Kapasitas</label>
                                             <div className="flex items-center space-x-2">
@@ -203,19 +251,15 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                                 <span className="text-lg font-medium">{room.capacity} orang</span>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="space-y-4">
                                         <div>
                                             <label className="text-sm font-medium text-gray-500">Status</label>
                                             <div className="flex items-center space-x-2 mt-1">
                                                 <Badge variant="outline" className={cn("text-sm", getStatusColor(room.status))}>
-                                                    <div className="flex items-center">
-                                                        {getStatusIcon(room.status)}
-                                                        <span className="ml-1">{getStatusLabel(room.status, 'room')}</span>
-                                                    </div>
+                                                    {getStatusIcon(room.status)}
+                                                    <span className="ml-1">{getStatusLabel(room.status, 'room')}</span>
                                                 </Badge>
                                                 {!room.is_active && (
-                                                    <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                                    <Badge variant="outline" className="bg-gray-50 text-gray-700">
                                                         Tidak Aktif
                                                     </Badge>
                                                 )}
@@ -242,19 +286,35 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                         </div>
                                     </>
                                 )}
+
+                                {room.notes && (
+                                    <>
+                                        <Separator />
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">Catatan</label>
+                                            <p className="text-gray-700 mt-2 leading-relaxed">{room.notes}</p>
+                                        </div>
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
 
                         {/* Facilities */}
-                        {room.facilities && room.facilities.length > 0 && (
-                            <Card>
+                        {facilities.length > 0 && (
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle>Fasilitas Tersedia</CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Star className="h-5 w-5" />
+                                        Fasilitas Tersedia
+                                    </CardTitle>
+                                    <CardDescription>
+                                        {facilities.length} fasilitas yang tersedia di ruangan ini
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {room.facilities.map((facility, index) => (
-                                            <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                                        {facilities.map((facility, index) => (
+                                            <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                                 <div className="flex-shrink-0 text-blue-600">
                                                     {getFacilityIcon(facility)}
                                                 </div>
@@ -268,58 +328,56 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
 
                         {/* Current Borrowing */}
                         {room.current_borrowing && (
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center">
-                                        <Clock className="h-5 w-5 mr-2" />
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Clock className="h-5 w-5" />
                                         Peminjaman Aktif
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-4">
-                                        <div className="flex items-start space-x-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
-                                            <Avatar className="h-10 w-10">
-                                                <AvatarFallback className="bg-orange-100 text-orange-700">
-                                                    {getUserInitials(room.current_borrowing.borrower_name)}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1">
-                                                <h4 className="font-medium text-orange-900">
-                                                    {room.current_borrowing.borrower_name}
-                                                </h4>
+                                    <div className="flex items-start space-x-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                                        <Avatar className="h-10 w-10">
+                                            <AvatarFallback className="bg-orange-100 text-orange-700">
+                                                {getUserInitials(room.current_borrowing.borrower_name)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1">
+                                            <h4 className="font-medium text-orange-900">
+                                                {room.current_borrowing.borrower_name}
+                                            </h4>
+                                            {room.current_borrowing.user_name && (
                                                 <p className="text-sm text-orange-700">
-                                                    {room.current_borrowing.borrower_phone}
+                                                    {room.current_borrowing.user_name}
                                                 </p>
-                                                <div className="mt-2 space-y-1 text-sm text-orange-600">
+                                            )}
+                                            <div className="mt-2 space-y-1 text-sm text-orange-600">
+                                                {room.current_borrowing.borrow_date && (
                                                     <div className="flex items-center space-x-2">
                                                         <Calendar className="h-4 w-4" />
-                                                        <span>Mulai: {formatDateTime(room.current_borrowing.borrowed_at)}</span>
+                                                        <span>{room.current_borrowing.borrow_date}</span>
                                                     </div>
-                                                    {room.current_borrowing.planned_return_at && (
-                                                        <div className="flex items-center space-x-2">
-                                                            <Clock className="h-4 w-4" />
-                                                            <span>Estimasi selesai: {formatDateTime(room.current_borrowing.planned_return_at)}</span>
-                                                        </div>
-                                                    )}
+                                                )}
+                                                {room.current_borrowing.start_time && (
                                                     <div className="flex items-center space-x-2">
-                                                        <Users className="h-4 w-4" />
-                                                        <span>{room.current_borrowing.participant_count} peserta</span>
-                                                    </div>
-                                                </div>
-                                                {room.current_borrowing.purpose && (
-                                                    <div className="mt-3 p-2 bg-white rounded text-sm">
-                                                        <span className="font-medium">Tujuan: </span>
-                                                        {room.current_borrowing.purpose}
+                                                        <Clock className="h-4 w-4" />
+                                                        <span>{room.current_borrowing.start_time} - {room.current_borrowing.end_time || 'Selesai'}</span>
                                                     </div>
                                                 )}
                                             </div>
-                                            <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/Borrowings/${room.current_borrowing.id}`}>
-                                                    <Eye className="h-4 w-4 mr-1" />
-                                                    Detail
-                                                </Link>
-                                            </Button>
+                                            {room.current_borrowing.purpose && (
+                                                <div className="mt-3 p-2 bg-white rounded text-sm">
+                                                    <span className="font-medium">Tujuan: </span>
+                                                    {room.current_borrowing.purpose}
+                                                </div>
+                                            )}
                                         </div>
+                                        <Button variant="outline" size="sm" asChild>
+                                            <Link href={`/Borrowings/${room.current_borrowing.id}`}>
+                                                <Eye className="h-4 w-4 mr-1" />
+                                                Detail
+                                            </Link>
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -329,7 +387,7 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                     {/* Sidebar */}
                     <div className="space-y-6">
                         {/* Quick Actions */}
-                        <Card>
+                        <Card className="border-0 shadow-sm">
                             <CardHeader>
                                 <CardTitle>Aksi Cepat</CardTitle>
                             </CardHeader>
@@ -368,22 +426,31 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                         </Card>
 
                         {/* Statistics */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Statistik Ruangan</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-3">
+                        {stats && (
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle>Statistik Ruangan</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-600">Total Peminjaman</span>
-                                        <span className="font-medium">{room.borrowings_count || 0}</span>
+                                        <span className="font-medium">{stats.total_bookings || 0}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600">Total Jam Digunakan</span>
-                                        <span className="font-medium">{room.total_hours_used || 0} jam</span>
+                                        <span className="text-sm text-gray-600">Peminjaman Aktif</span>
+                                        <span className="font-medium">{stats.active_bookings || 0}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600">Status Saat Ini</span>
+                                        <span className="text-sm text-gray-600">Selesai</span>
+                                        <span className="font-medium">{stats.completed_bookings || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-gray-600">Bulan Ini</span>
+                                        <span className="font-medium">{stats.monthly_bookings || 0}</span>
+                                    </div>
+                                    <Separator />
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm text-gray-600">Status</span>
                                         <Badge variant="outline" className={cn("text-xs", getStatusColor(room.status))}>
                                             {getStatusLabel(room.status, 'room')}
                                         </Badge>
@@ -397,35 +464,47 @@ export default function ShowRoom({ auth, room }: ShowRoomPageProps) {
                                             {room.is_active ? 'Ya' : 'Tidak'}
                                         </Badge>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                    {layoutImages.length > 0 && (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">Jumlah Layout</span>
+                                            <span className="font-medium">{layoutImages.length} gambar</span>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Room Info */}
-                        <Card>
+                        <Card className="border-0 shadow-sm">
                             <CardHeader>
                                 <CardTitle>Informasi Tambahan</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-3 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">ID Ruangan</span>
-                                        <span className="font-medium">#{room.id}</span>
-                                    </div>
+                            <CardContent className="space-y-3 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">ID Ruangan</span>
+                                    <span className="font-medium">#{room.id}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">Kode</span>
+                                    <span className="font-medium">{room.code}</span>
+                                </div>
+                                {room.created_at && (
                                     <div className="flex justify-between">
                                         <span className="text-gray-600">Dibuat</span>
                                         <span className="font-medium">{formatDateTime(room.created_at)}</span>
                                     </div>
+                                )}
+                                {room.updated_at && (
                                     <div className="flex justify-between">
                                         <span className="text-gray-600">Terakhir Diupdate</span>
                                         <span className="font-medium">{formatDateTime(room.updated_at)}</span>
                                     </div>
-                                </div>
+                                )}
                             </CardContent>
                         </Card>
 
-                        {/* Contact Info for Support */}
-                        <Card>
+                        {/* Contact Info */}
+                        <Card className="border-0 shadow-sm">
                             <CardHeader>
                                 <CardTitle>Bantuan & Dukungan</CardTitle>
                             </CardHeader>

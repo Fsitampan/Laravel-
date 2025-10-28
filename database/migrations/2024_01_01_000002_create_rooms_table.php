@@ -18,6 +18,7 @@ return new class extends Migration
             $table->enum('status', ['tersedia', 'dipakai', 'pemeliharaan'])->default('tersedia');
             $table->string('location')->nullable();
             $table->json('facilities')->nullable();
+            $table->json('layout_images')->nullable();
             $table->string('image')->nullable();
             $table->text('notes')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();

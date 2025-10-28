@@ -54,6 +54,10 @@ export interface Room {
     equipment?: RoomEquipment[];
     borrowings_count?: number;
     total_hours_used?: number;
+    layouts?: string | string[];     
+    layout_images?: string[];          
+    notes?: string;                    
+    
     
     // Relationships
     creator?: User;
@@ -96,6 +100,11 @@ export interface Borrowing {
     recurring_end_date?: string;
     created_at: string;
     updated_at: string;
+    borrow_date?: string;
+    start_time?: string;
+    end_time?: string;
+    user_name?: string;
+    layout_choice?: string | null;
     
     // Relationships
     room?: Room;

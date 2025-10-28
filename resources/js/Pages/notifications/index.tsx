@@ -14,15 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-
-const getCsrfToken = (): string => {
-    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    if (!token) {
-        console.error('CSRF token not found');
-        return '';
-    }
-    return token;
-};
+import { getCsrfToken } from '../../lib/csrf';
 
 interface NotificationData {
     id: number;

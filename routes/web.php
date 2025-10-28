@@ -91,7 +91,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/{room}/edit', [RoomController::class, 'edit'])
             ->middleware('role:admin,super-admin')
             ->name('edit');
-        Route::post('/{room}', [RoomController::class, 'update'])
+        Route::put('/{room}', [RoomController::class, 'update'])
             ->middleware('role:admin,super-admin')
             ->name('update');
         Route::delete('/{room}', [RoomController::class, 'destroy'])
@@ -100,18 +100,20 @@ Route::middleware('auth')->group(function () {
         Route::patch('/{room}/Status', [RoomController::class, 'updateStatus'])
             ->middleware('role:admin,super-admin')
             ->name('status.update');
+            Route::post('/Rooms/{room}', [RoomController::class, 'update'])->name('Rooms.update');
     });
 
     // Borrowing Management routes (Capital case)
     Route::prefix('Borrowings')->name('Borrowings.')->group(function () {
         Route::get('/', [BorrowingController::class, 'Index'])->name('Index');
         Route::get('/Create', [BorrowingController::class, 'create'])->name('create');
-        Route::post('/', [BorrowingController::class, 'store'])->name('store');
+        Route::post('/Index', [BorrowingController::class, 'store'])->name('store');
         Route::get('/{borrowing}', [BorrowingController::class, 'show'])->name('show');
         Route::get('/{borrowing}/Edit', [BorrowingController::class, 'edit'])->name('edit');
         Route::put('/{borrowing}', [BorrowingController::class, 'update'])->name('update');
         Route::delete('/{borrowing}', [BorrowingController::class, 'destroy'])->name('destroy');
         Route::patch('/{borrowing}/Return', [BorrowingController::class, 'returnRoom'])->name('return');
+        Route::post('/{borrowing}/cancel', [BorrowingController::class, 'cancel'])->name('cancel');
         Route::get('/Export', [BorrowingController::class, 'export'])->name('export');
     });
 

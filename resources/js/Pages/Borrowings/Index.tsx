@@ -8,13 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
     Calendar,
     Plus,
     Search,
-    Filter,
     Clock,
-    User,
-    Building2,
     Eye,
     CheckCircle,
     XCircle,
@@ -22,10 +29,10 @@ import {
     Timer,
     Users,
     Activity,
-    MapPin,
     CalendarDays,
     ArrowUpRight,
-    TrendingUp
+    TrendingUp,
+    Ban
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDateTime, getStatusColor, getStatusLabel, getUserInitials, debounce } from '@/lib/utils';
@@ -36,26 +43,22 @@ interface BorrowingsPageProps extends PageProps {
     filters: BorrowingFilters;
 }
 
-// Mock data untuk gambar ruangan - dalam production akan dari database
-const getRoomImage = (roomName: string): string => {
-    const imageMap: { [key: string]: string } = {
-        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIwcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaXNjdXNzaW9uJTIwcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdWRpdG9yaXVtJTIwc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral'
-    };
-    
-    const roomCode = roomName.toUpperCase();
-    return imageMap[roomCode] || imageMap['A']; // Default fallback
+// Fungsi untuk mendapatkan gambar ruangan (sama seperti di Rooms)
+const getRoomImage = (room: any): string => {
+    // Sama persis seperti di halaman Rooms
+    return room?.image_url || `https://placehold.co/800x600/e2e8f0/64748b?text=Ruang+${encodeURIComponent(room?.name || 'X')}`;
 };
 
 export default function BorrowingsIndex({ auth, borrowings, filters }: BorrowingsPageProps) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [viewAll, setViewAll] = useState(filters.viewAll ? "all" : "mine");
-
+    
+    // State untuk cancel dialog
+    const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+    const [selectedBorrowing, setSelectedBorrowing] = useState<Borrowing | null>(null);
+    const [cancellationReason, setCancellationReason] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const isAdmin = ['admin', 'super-admin'].includes(auth.user.role);
 
@@ -93,18 +96,48 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
     };
 
     const handleViewFilter = (mode: "mine" | "all") => {
-    setViewAll(mode);
-    router.get('/Borrowings', { 
-        ...filters, 
-        viewAll: mode === "all" ? 1 : 0,
-        page: 1 
-    }, { 
-        preserveState: true,
-        replace: true 
-    });
+        setViewAll(mode);
+        router.get('/Borrowings', { 
+            ...filters, 
+            viewAll: mode === "all" ? 1 : 0,
+            page: 1 
+        }, { 
+            preserveState: true,
+            replace: true 
+        });
     };
 
+    const openCancelDialog = (borrowing: Borrowing) => {
+        setSelectedBorrowing(borrowing);
+        setCancellationReason('');
+        setCancelDialogOpen(true);
+    };
 
+    const handleCancelBorrowing = () => {
+        if (!selectedBorrowing || !cancellationReason.trim()) {
+            toast.error('Alasan pembatalan harus diisi');
+            return;
+        }
+
+        setIsSubmitting(true);
+        
+        router.post(`/Borrowings/${selectedBorrowing.id}/cancel`, {
+            cancellation_reason: cancellationReason
+        }, {
+            onSuccess: () => {
+                toast.success('Peminjaman berhasil dibatalkan');
+                setCancelDialogOpen(false);
+                setCancellationReason('');
+                setSelectedBorrowing(null);
+            },
+            onError: (errors) => {
+                toast.error(errors.message || 'Gagal membatalkan peminjaman');
+            },
+            onFinish: () => {
+                setIsSubmitting(false);
+            }
+        });
+    };
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -119,7 +152,7 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
             case 'completed':
                 return <CheckCircle className="h-4 w-4" />;
             case 'cancelled':
-                return <XCircle className="h-4 w-4" />;
+                return <Ban className="h-4 w-4" />;
             default:
                 return <AlertCircle className="h-4 w-4" />;
         }
@@ -132,8 +165,6 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
         active: borrowings.data.filter(b => b.status === 'active').length,
         completed: borrowings.data.filter(b => b.status === 'completed').length,
     };
-
-
 
     return (
         <AuthenticatedLayout user={auth.user}>
@@ -310,29 +341,29 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                             <div className="flex items-center space-x-2">
                                {/* Filter View: Peminjaman Saya / Semua */}
                                 <Select value={viewAll} onValueChange={handleViewFilter}>
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Tampilan Data" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="mine">Peminjaman Saya</SelectItem>
-                                    <SelectItem value="all">Semua Peminjaman</SelectItem>
-                                </SelectContent>
+                                    <SelectTrigger className="w-48">
+                                        <SelectValue placeholder="Tampilan Data" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="mine">Peminjaman Saya</SelectItem>
+                                        <SelectItem value="all">Semua Peminjaman</SelectItem>
+                                    </SelectContent>
                                 </Select>
 
                                 {/* Filter Status */}
                                 <Select value={statusFilter} onValueChange={handleStatusFilter}>
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Filter Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Semua Status</SelectItem>
-                                    <SelectItem value="pending">Menunggu Persetujuan</SelectItem>
-                                    <SelectItem value="approved">Disetujui</SelectItem>
-                                    <SelectItem value="active">Sedang Berlangsung</SelectItem>
-                                    <SelectItem value="completed">Selesai</SelectItem>
-                                    <SelectItem value="rejected">Ditolak</SelectItem>
-                                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                                </SelectContent>
+                                    <SelectTrigger className="w-48">
+                                        <SelectValue placeholder="Filter Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua Status</SelectItem>
+                                        <SelectItem value="pending">Menunggu Persetujuan</SelectItem>
+                                        <SelectItem value="approved">Disetujui</SelectItem>
+                                        <SelectItem value="active">Sedang Berlangsung</SelectItem>
+                                        <SelectItem value="completed">Selesai</SelectItem>
+                                        <SelectItem value="rejected">Ditolak</SelectItem>
+                                        <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                                    </SelectContent>
                                 </Select>
                             </div>
                         </div>
@@ -345,9 +376,14 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                         <Card key={borrowing.id} className="border-0 shadow-sm overflow-hidden group hover:shadow-md transition-all duration-200">
                             <div className="relative h-48">
                                 <img
-                                    src={getRoomImage(borrowing.room?.name || 'A')}
-                                    alt={`Ruang ${borrowing.room?.name}`}
+                                    src={getRoomImage(borrowing.room)}
+                                    alt={`Ruang ${borrowing.room?.name || 'Unknown'}`}
                                     className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        // Fallback jika gambar gagal load
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = `https://placehold.co/800x600/e2e8f0/64748b?text=Ruang+${encodeURIComponent(borrowing.room?.name || 'X')}`;
+                                    }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                                 
@@ -362,7 +398,7 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                                 {/* Room Info Overlay */}
                                 <div className="absolute bottom-4 left-4 right-4">
                                     <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3">
-                                        <h3 className="text-white font-semibold text-lg">Ruang {borrowing.room?.name}</h3>
+                                        <h3 className="text-white font-semibold text-lg"> {borrowing.room?.name}</h3>
                                         <p className="text-white/80 text-sm">#{borrowing.id} • {borrowing.participant_count} peserta</p>
                                     </div>
                                 </div>
@@ -435,8 +471,8 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                                         </div>
                                     )}
 
-                                    {/* Action Button */}
-                                    <div className="pt-2">
+                                    {/* Action Buttons */}
+                                    <div className="pt-2 space-y-2">
                                         <Button asChild className="w-full" variant="outline">
                                             <Link href={`/Borrowings/${borrowing.id}`}>
                                                 <Eye className="h-4 w-4 mr-2" />
@@ -444,6 +480,19 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                                                 <ArrowUpRight className="h-4 w-4 ml-2" />
                                             </Link>
                                         </Button>
+
+                                        {/* Cancel Button - Hanya muncul jika status pending atau approved DAN user adalah pemilik */}
+                                        {(borrowing.status === 'pending' || borrowing.status === 'approved') && 
+                                         (borrowing.user_id === auth.user.id || isAdmin) && (
+                                            <Button 
+                                                className="w-full" 
+                                                variant="destructive"
+                                                onClick={() => openCancelDialog(borrowing)}
+                                            >
+                                                <Ban className="h-4 w-4 mr-2" />
+                                                Batalkan Peminjaman
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
@@ -510,6 +559,69 @@ export default function BorrowingsIndex({ auth, borrowings, filters }: Borrowing
                         </CardContent>
                     </Card>
                 )}
+
+                {/* Cancel Dialog */}
+                <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Batalkan Peminjaman</DialogTitle>
+                            <DialogDescription>
+                                Apakah Anda yakin ingin membatalkan peminjaman ini? Tindakan ini tidak dapat dibatalkan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            {selectedBorrowing && (
+                                <div className="p-4 bg-muted rounded-lg space-y-2">
+                                    <p className="text-sm"><span className="font-medium">Ruangan:</span> {selectedBorrowing.room?.name}</p>
+                                    <p className="text-sm"><span className="font-medium">Peminjam:</span> {selectedBorrowing.borrower_name}</p>
+                                    <p className="text-sm"><span className="font-medium">Waktu:</span> {formatDateTime(selectedBorrowing.borrowed_at)}</p>
+                                </div>
+                            )}
+                            <div className="space-y-2">
+                                <Label htmlFor="cancellation_reason">
+                                    Alasan Pembatalan <span className="text-red-500">*</span>
+                                </Label>
+                                <Textarea
+                                    id="cancellation_reason"
+                                    placeholder="Jelaskan alasan pembatalan peminjaman..."
+                                    value={cancellationReason}
+                                    onChange={(e) => setCancellationReason(e.target.value)}
+                                    rows={4}
+                                    className="resize-none"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Alasan ini akan dikirimkan ke admin sebagai notifikasi
+                                </p>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => setCancelDialogOpen(false)}
+                                disabled={isSubmitting}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={handleCancelBorrowing}
+                                disabled={isSubmitting || !cancellationReason.trim()}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                        Memproses...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Ban className="h-4 w-4 mr-2" />
+                                        Ya, Batalkan Peminjaman
+                                    </>
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </AuthenticatedLayout>
     );

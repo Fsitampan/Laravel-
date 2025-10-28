@@ -17,12 +17,13 @@ class RoomSeeder extends Seeder
 
         $rooms = [
             [
-                'name' => 'Ruang Rapat Kepala BPS',
+                'name' => 'Ruang Sungkai',
                 'code' => 'A',
-                'description' => 'Ruang rapat utama untuk meeting pimpinan dan tamu VIP. Dilengkapi dengan fasilitas modern dan suasana formal yang nyaman.',
+                'description' => 'Ruang rapat dengan kapasitas 20 orang, dilengkapi meja rapat besar dan proyektor.',
+                'image' => 'rooms/sungkai.jpg',
                 'capacity' => 20,
                 'status' => 'tersedia',
-                'location' => 'Lantai 2 - Gedung Utama',
+                'location' => 'Lantai 2',
                 'facilities' => json_encode([
                     'AC Split',
                     'Proyektor LCD',
@@ -35,17 +36,17 @@ class RoomSeeder extends Seeder
                     'Flip Chart',
                     'Telepon Konferensi'
                 ]),
-                'notes' => 'Ruangan khusus untuk meeting pimpinan dan tamu VIP',
+                'notes' => 'Ruangan rapat',
                 'created_by' => 1,
                 'updated_by' => 1,
             ],
             [
-                'name' => 'Ruang Rapat Koordinasi',
+                'name' => 'Ruang Rapat Ex Distribusi',
                 'code' => 'B',
                 'description' => 'Ruang untuk koordinasi antar bidang dan meeting rutin. Cocok untuk diskusi tim dan presentasi internal.',
-                'capacity' => 15,
+                'capacity' => 20,
                 'status' => 'tersedia',
-                'location' => 'Lantai 2 - Gedung Utama',
+                'location' => 'Lantai 2',
                 'facilities' => json_encode([
                     'AC Split',
                     'Proyektor LCD',
@@ -61,12 +62,13 @@ class RoomSeeder extends Seeder
                 'updated_by' => 1,
             ],
             [
-                'name' => 'Ruang Seminar dan Pelatihan',
+                'name' => 'Ruang Aula',
                 'code' => 'C',
-                'description' => 'Ruang serbaguna untuk seminar, workshop, dan kegiatan pelatihan. Layout fleksibel untuk berbagai jenis acara.',
-                'capacity' => 50,
+                'description' => 'Aula utama BPS yang dapat digunakan untuk acara besar dan rapat umum.',
+                'capacity' => 100,
+                'image' => 'rooms/aula.jpg',
                 'status' => 'dipakai',
-                'location' => 'Lantai 1 - Gedung Utama',
+                'location' => 'Lantai 3',
                 'facilities' => json_encode([
                     'AC Central',
                     'Proyektor LCD HD',
@@ -83,12 +85,12 @@ class RoomSeeder extends Seeder
                 'updated_by' => 1,
             ],
             [
-                'name' => 'Ruang Diskusi Tim',
+                'name' => 'Ruang Agro',
                 'code' => 'D',
                 'description' => 'Ruang untuk diskusi kelompok kecil dan brainstorming. Suasana informal dan kondusif untuk kreativitas.',
                 'capacity' => 10,
                 'status' => 'tersedia',
-                'location' => 'Lantai 1 - Gedung Utama',
+                'location' => 'Lantai 3',
                 'facilities' => json_encode([
                     'AC Split',
                     'TV LED 55 inch',
@@ -104,12 +106,12 @@ class RoomSeeder extends Seeder
                 'updated_by' => 1,
             ],
             [
-                'name' => 'Ruang Konsultasi',
+                'name' => 'Ruangan Rapat PST',
                 'code' => 'E',
-                'description' => 'Ruang khusus untuk konsultasi dengan stakeholder eksternal dan meeting dengan tamu. Privasi terjamin.',
-                'capacity' => 8,
+                'description' => 'Ruang Rapat',
+                'capacity' => 6,
                 'status' => 'pemeliharaan',
-                'location' => 'Lantai 1 - Gedung Utama',
+                'location' => 'Lantai 1',
                 'facilities' => json_encode([
                     'AC Split',
                     'TV LED',
@@ -125,12 +127,12 @@ class RoomSeeder extends Seeder
                 'updated_by' => 1,
             ],
             [
-                'name' => 'Ruang Multiguna',
+                'name' => 'Ruangan Rapat Ex Distribusi ke-2',
                 'code' => 'F',
-                'description' => 'Ruang fleksibel untuk berbagai keperluan seperti workshop, training, dan acara khusus. Dapat dikonfigurasi sesuai kebutuhan.',
+                'description' => 'Ruang kecil di dalam ruangan Ex-Distribusi',
                 'capacity' => 30,
                 'status' => 'tersedia',
-                'location' => 'Lantai 1 - Gedung Annex',
+                'location' => 'Lantai 2',
                 'facilities' => json_encode([
                     'AC Central',
                     'Proyektor Portable',
@@ -142,7 +144,7 @@ class RoomSeeder extends Seeder
                     'Whiteboard Besar',
                     'Flip Chart'
                 ]),
-                'notes' => 'Ruangan fleksibel dengan layout yang dapat diubah',
+                'notes' => 'Ruangan kecil',
                 'created_by' => 1,
                 'updated_by' => 1,
             ],

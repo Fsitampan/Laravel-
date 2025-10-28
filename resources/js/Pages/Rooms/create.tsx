@@ -62,21 +62,47 @@ export default function CreateRoom({ auth }: PageProps) {
         image: null,
         image_url: '',
         notes: '',
+        layouts: [] as File[],
     });
 
     const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    e.preventDefault();
+    
+        const submitData: any = {
+            name: data.name,
+            code: data.code,
+            full_name: data.full_name || '',
+            description: data.description || '',
+            capacity: data.capacity,
+            status: data.status,
+            location: data.location || '',
+            notes: data.notes || '',
+            // ✅ FIX: Convert facilities ke JSON string
+            facilities: JSON.stringify(data.facilities || []),
+        };
         
-        // Pass the `data` object directly to Inertia's post method.
-        // Inertia will automatically handle converting File objects to FormData.
-        post('/Rooms', {
-        ...data, // Menggabungkan semua properti dari objek data
-        onSuccess: () => {
-            router.visit('/Rooms');
-        },
-        onError: (errors: Record<string, string>) => {
-            console.error('Form errors:', errors);
+        // Tambahkan image jika ada
+        if (data.image) {
+            submitData.image = data.image;
+        } else if (data.image_url) {
+            submitData.image_url = data.image_url;
         }
+        
+        // ✅ Tambahkan layouts (Inertia akan handle array of Files)
+        if (data.layouts && Array.isArray(data.layouts) && data.layouts.length > 0) {
+            submitData.layouts = data.layouts;
+        }
+        
+        // ✅ Gunakan router.post langsung
+        router.post('/Rooms', submitData, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                router.visit('/Rooms');
+            },
+            onError: (errors: Record<string, string>) => {
+                console.error('Form errors:', errors);
+            }
         });
     };
 
@@ -160,6 +186,11 @@ export default function CreateRoom({ auth }: PageProps) {
         'Sound System', 'Microphone', 'Podium', 'Laptop', 'Flipchart', 'Marker'
     ];
 
+    // Fungsi ambil layout ruangan dari storage publik
+    const getRoomLayout = (roomName: string): string => {
+        return `/storage/rooms/${roomName.toLowerCase()}.jpg`; 
+    };
+
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Tambah Ruangan Baru" />
@@ -199,18 +230,18 @@ export default function CreateRoom({ auth }: PageProps) {
                                         Preview Ruangan
                                     </CardTitle>
                                     <CardDescription>
-                                        Preview gambar ruangan berdasarkan nama yang dipilih
+                                        Preview gambar ruangan berdasarkan gambar yang dipilih
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="relative h-48 rounded-lg overflow-hidden bg-muted">
-                                        {data.name ? (
+                                        {imagePreview  ? (
                                             <>
-                                                <img
-                                                    src={getRoomImage(data.name)}
-                                                    alt={`Preview Ruang ${data.name}`}
-                                                    className="w-full h-full object-cover"
-                                                />
+                                                    <img 
+                                                        src={imagePreview}
+                                                        alt={`Preview Ruang ${data.name || 'Ruangan'}`}
+                                                        className="w-full h-full object-cover"
+                                                        />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                                                 <div className="absolute bottom-4 left-4">
                                                     <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2">
@@ -234,11 +265,51 @@ export default function CreateRoom({ auth }: PageProps) {
                                             <div className="flex items-center justify-center h-full">
                                                 <div className="text-center">
                                                     <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                                                    <p className="text-muted-foreground">Masukkan nama ruangan untuk melihat preview</p>
+                                                    <p className="text-muted-foreground">Masukkan gambar ruangan untuk melihat preview</p>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Layout Ruangan */}
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Camera className="h-5 w-5" />
+                                        Layout Ruangan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Denah layout berdasarkan gambar layout ruangan yang dimasukkan
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="relative h-64 rounded-lg overflow-hidden bg-muted">
+                                       {data.layouts && data.layouts.length > 0 ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {data.layouts.map((file: File, index: number) => {
+                                            const url = URL.createObjectURL(file);
+                                            return (
+                                                <div key={index} className="relative">
+                                                <img
+                                                    src={url}
+                                                    alt={`Layout ${index + 1}`}
+                                                    className="w-full h-32 object-cover rounded-lg border"
+                                                />
+                                                <span className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                                                    Layout {index + 1}
+                                                </span>
+                                                </div>
+                                            );
+                                            })}
+                                        </div>
+                                        ) : (
+                                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                                            Belum ada gambar layout yang dipilih
+                                        </div>
+                                        )}
+                                        </div>
                                 </CardContent>
                             </Card>
 
@@ -558,6 +629,64 @@ export default function CreateRoom({ auth }: PageProps) {
                                 </CardContent>
                             </Card>
                         </div>
+
+                        {/* Layout Ruangan */}
+                        <Card className="border-0 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="flex items-center">
+                            <Camera className="h-5 w-5 mr-2" />
+                            Layout Ruangan
+                            </CardTitle>
+                            <CardDescription>
+                            Unggah satu atau beberapa gambar layout ruangan
+                            </CardDescription>
+                        </CardHeader>
+
+                        <CardContent className="space-y-4">
+                            <div>
+                            <Label htmlFor="layouts">Pilih File Gambar</Label>
+                            <Input
+                                id="layouts"
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={(e) => {
+                                const files = e.target.files;
+                                if (files && files.length > 0) {
+                                    setData("layouts", Array.from(files));
+                                } else {
+                                    setData("layouts", []);
+                                }
+                                }}
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                                Kamu bisa unggah beberapa gambar layout. Maksimal 2 MB per file.
+                            </p>
+                            </div>
+
+                            {/* Preview Layouts */}
+                            {data.layouts && Array.isArray(data.layouts) && data.layouts.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
+                                {data.layouts.map((file: File, index: number) => {
+                                const url = URL.createObjectURL(file);
+                                return (
+                                    <div key={index} className="relative">
+                                    <img
+                                        src={url}
+                                        alt={`Layout ${index + 1}`}
+                                        className="w-full h-32 object-cover rounded-lg border"
+                                    />
+                                    <span className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                                        Layout {index + 1}
+                                    </span>
+                                    </div>
+                                );
+                                })}
+                            </div>
+                            )}
+                        </CardContent>
+                        </Card>
+
 
                         {/* Sidebar */}
                         <div className="space-y-6">

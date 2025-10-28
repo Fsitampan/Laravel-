@@ -23,6 +23,7 @@ return new class extends Migration
             // Relasi ke rooms & users
             $table->foreignId('room_id')->constrained('rooms')->onDelete('cascade');
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
+            $table->string('layout_choice')->nullable();
 
             // Data peminjam
             $table->string('borrower_name');

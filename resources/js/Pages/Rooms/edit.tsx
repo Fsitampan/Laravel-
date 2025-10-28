@@ -43,65 +43,99 @@ import type { PageProps, Room } from '@/types';
 import { Link } from '@inertiajs/react';
 
 interface EditRoomPageProps extends PageProps {
-    room: Room;
+    room: Room & {
+        computed_image_url?: string;
+        layout_images?: string[];
+    };
 }
 
-// Mock data untuk gambar ruangan - dalam production akan dari database
-const getRoomImage = (roomName: string): string => {
-    const imageMap: { [key: string]: string } = {
-        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIwcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaXNjdXNzaW9uJTIwcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdWRpdG9yaXVtJTIwc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-    };
-    
-    const roomCode = roomName?.toString().toUpperCase() || 'A';
-    return imageMap[roomCode] || imageMap['A']; // Default fallback
-};
-
 export default function EditRoom({ auth, room }: EditRoomPageProps) {
-    const [facilitiesList, setFacilitiesList] = useState<string[]>(room.facilities || ['']);
-    const [imagePreview, setImagePreview] = useState<string>(room.image_url || '');
-    const [imageError, setImageError] = useState<boolean>(false);
+        const [facilitiesList, setFacilitiesList] = useState<string[]>(() => {
+        try {
+            if (typeof room.facilities === 'string') {
+                const parsed = JSON.parse(room.facilities);
+                return Array.isArray(parsed) ? parsed : [''];
+            }
+            return Array.isArray(room.facilities) ? room.facilities : [''];
+        } catch {
+            return [''];
+        }
+    });
 
-   const { data, setData, put, post, patch, processing, errors, reset } = useForm<Record<string, any>>({
-      name: room.name,
-      code: room.code || '',     
-      full_name: room.full_name || '',
-      description: room.description || '',
-      capacity: room.capacity,
-      facilities: room.facilities || [],
-      location: room.location || '',
-      image: null as File | null,
-      status: room.status,
-      is_active: room.is_active ? 1 : 0,
+    const [imagePreview, setImagePreview] = useState<string>(room.image || '');
+    const [imageError, setImageError] = useState<boolean>(false);
+    
+    // ✅ State untuk preview layout baru
+    const [newLayoutPreviews, setNewLayoutPreviews] = useState<string[]>([]);
+
+    const { data, setData, post, processing, errors } = useForm<Record<string, any>>({
+        _method: 'PUT',
+        name: room.name || '',
+        code: room.code || '',
+        full_name: room.full_name || '',
+        description: room.description || '',
+        capacity: room.capacity || 1,
+        status: room.status,
+        facilities: Array.isArray(room.facilities)
+        ? room.facilities
+        : (typeof room.facilities === 'string'
+            ? JSON.parse(room.facilities)
+            : []),
+        location: room.location || '',
+        image: null as File | null,
+        layouts: [] as File[],
+        is_active: room.is_active,
     });
 
     const isAdmin = ['admin', 'super-admin'].includes((auth as any).user.role);
 
     useEffect(() => {
-        if (room.facilities && room.facilities.length > 0) {
-            setFacilitiesList(room.facilities);
-        }
+        // selalu set array hasil normalisasi sehingga .filter/.map aman dipanggil
+        const normalized = normalizeFacilities(room.facilities);
+        setFacilitiesList(normalized.length > 0 ? normalized : ['']);
+
         if (room.image_url) {
             setImagePreview(room.image_url);
         }
     }, [room]);
 
+
     const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    post(`/Rooms/${room.id}`, {
-        forceFormData: true, // Opsional, tapi baik untuk memastikan pengiriman multipart/form-data
-        onSuccess: () => {
-            router.visit('/Rooms');
-        },
-        onError: (errors: Record<string, string>) => {
-        console.error('Form errors:', errors);
-        }
+
+    const formData = new FormData();
+    formData.append("_method", "PUT");
+    formData.append("name", data.name);
+    formData.append("code", data.code);
+    formData.append("full_name", data.full_name || "");
+    formData.append("description", data.description || "");
+    formData.append("capacity", String(data.capacity));
+    formData.append("status", data.status);
+    formData.append("location", data.location || "");
+    formData.append("is_active", data.is_active ? "true" : "false");
+
+    // hanya kirim gambar jika user memilih file baru
+    if (data.image) {
+        formData.append("image", data.image);
+    }
+
+    // hanya kirim layout baru jika dipilih
+    if (data.layouts.length > 0) {
+        data.layouts.forEach((file: File, i: number) => {
+        formData.append(`layouts[${i}]`, file);
+        });
+    }
+
+    formData.append("facilities", JSON.stringify(data.facilities));
+
+    router.post(`/Rooms/${room.id}`, formData, {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => router.visit("/Rooms"),
+        onError: (errors) => console.error("Form errors:", errors),
     });
-};
+    };
+
 
     const handleDelete = () => {
         router.delete(`/Rooms/${room.id}`, {
@@ -128,57 +162,103 @@ export default function EditRoom({ auth, room }: EditRoomPageProps) {
         setData('facilities', newList.filter(item => item.trim() !== ''));
     };
 
-    const handleImageUrlChange = (url: string) => {
-        setData('image_url', url);
-        setImageError(false);
-        
-        if (url.trim()) {
-            // avoid using `new Image()` because there's an import named Image (react icon)
-            const img = document.createElement('img');
-            img.onload = () => {
-                setImagePreview(url);
-                setImageError(false);
-            };
-            img.onerror = () => {
-                setImagePreview('');
-                setImageError(true);
-            };
-            img.src = url;
+    const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setData('image', file);
+            const reader = new FileReader();
+            reader.onload = () => setImagePreview(reader.result as string);
+            reader.readAsDataURL(file);
         } else {
-            setImagePreview('');
-            setImageError(false);
+            setImagePreview(room.image_url || '');
+            setData('image', null);
         }
     };
 
-const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>)  => {
-    const file = e.target.files?.[0] || null;
-    setData('image', file);
-    if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setImagePreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-    } else {
+    const clearImageFile = () => {
+        setData('image', null);
         setImagePreview(room.image_url || '');
-    }
-};
+    };
 
-const clearImageFile = () => {
-    setData('image', null);
-    setImagePreview(room.image_url || '');
-};
+    // ✅ Handle multiple layout files dengan preview
+    const handleLayoutsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const fileArray = Array.from(files);
+            setData('layouts', fileArray);
+            
+            // Buat preview untuk setiap file
+            const previews: string[] = [];
+            fileArray.forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    previews.push(event.target?.result as string);
+                    if (previews.length === fileArray.length) {
+                        setNewLayoutPreviews(previews);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        } else {
+            setData('layouts', []);
+            setNewLayoutPreviews([]);
+        }
+    };
 
-    const clearImagePreview = () => {
-        setImagePreview('');
-        setImageError(false);
-        setData('image', '');
+    // ✅ Clear layout baru
+    const clearNewLayouts = () => {
+        setData('layouts', []);
+        setNewLayoutPreviews([]);
+        // Reset input file
+        const fileInput = document.getElementById('layouts') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
     };
 
     const commonFacilities: string[] = [
         'Proyektor', 'Whiteboard', 'Air Conditioner', 'WiFi', 'Meja', 'Kursi',
         'Sound System', 'Microphone', 'Podium', 'Laptop', 'Flipchart', 'Marker'
     ];
+
+    const getRoomLayout = (roomName: string): string => {
+        return `/storage/rooms/${roomName.toLowerCase()}.jpg`; 
+    };
+
+        const normalizeFacilities = (f: any): string[] => {
+    if (!f) return [];
+    if (Array.isArray(f)) return f;
+    if (typeof f === 'string') {
+        // coba parse JSON terlebih dahulu
+        try {
+        const parsed = JSON.parse(f);
+        if (Array.isArray(parsed)) return parsed;
+        } catch {
+        // bukan JSON, lanjut ke split koma
+        }
+        return f.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+    };
+
+    // ✅ Parse layouts dengan aman
+    const getExistingLayouts = (): string[] => {
+        if (!room.layouts) return [];
+        
+        try {
+            if (typeof room.layouts === 'string') {
+                const parsed = JSON.parse(room.layouts);
+                return Array.isArray(parsed) ? parsed : [];
+            }
+            if (Array.isArray(room.layouts)) {
+                return room.layouts;
+            }
+        } catch (err) {
+            console.warn('Gagal parse layouts:', err);
+        }
+        
+        return [];
+    };
+
+    const existingLayouts = getExistingLayouts();
 
     return (
         <AuthenticatedLayout user={(auth as any).user}>
@@ -219,7 +299,7 @@ const clearImageFile = () => {
                                     <AlertDialogTitle>Hapus Ruangan</AlertDialogTitle>
                                     <AlertDialogDescription>
                                         Apakah Anda yakin ingin menghapus ruang {room.name}? 
-                                        Tindakan ini tidak dapat dibatalkan dan akan menghapus semua data peminjaman terkait.
+                                        Tindakan ini tidak dapat dibatalkan.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -247,42 +327,17 @@ const clearImageFile = () => {
                                         <Camera className="h-5 w-5" />
                                         Preview Ruangan Saat Ini
                                     </CardTitle>
-                                    <CardDescription>
-                                        Tampilan ruangan berdasarkan data yang ada
-                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="relative h-48 rounded-lg overflow-hidden bg-muted">
                                         <img
-                                            src={getRoomImage(String(data.name))}
+                                            src={imagePreview}
                                             alt={`Preview Ruang ${data.name}`}
                                             className="w-full h-full object-cover"
+                                            onError={(e) => { 
+                                                (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/e5e7eb/6b7280?text=No+Image'; 
+                                            }}
                                         />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                                        <div className="absolute bottom-4 left-4">
-                                            <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2">
-                                                <span className="text-white font-semibold text-lg">Ruang {data.name}</span>
-                                                <p className="text-white/80 text-sm">{data.capacity} orang</p>
-                                            </div>
-                                        </div>
-                                        <div className="absolute top-4 right-4">
-                                            <Badge variant="outline" className="backdrop-blur-sm bg-white/90 text-xs">
-                                                {data.status === 'tersedia' && <CheckCircle className="h-4 w-4 mr-1 inline" />}
-                                                {data.status === 'dipakai' && <Users className="h-4 w-4 mr-1 inline" />}
-                                                {data.status === 'pemeliharaan' && <Wrench className="h-4 w-4 mr-1 inline" />}
-                                                {data.status === 'tersedia' ? 'Tersedia' : data.status === 'dipakai' ? 'Dipakai' : 'Pemeliharaan'}
-                                            </Badge>
-                                        </div>
-                                        {data.location && (
-                                            <div className="absolute bottom-4 right-4">
-                                                <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1">
-                                                    <span className="text-white/90 text-sm flex items-center gap-1">
-                                                        <MapPin className="h-3 w-3" />
-                                                        {data.location}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -294,9 +349,6 @@ const clearImageFile = () => {
                                         <Building2 className="h-5 w-5" />
                                         Informasi Dasar
                                     </CardTitle>
-                                    <CardDescription>
-                                        Edit informasi dasar ruangan
-                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -308,7 +360,6 @@ const clearImageFile = () => {
                                                 value={data.name}
                                                 onChange={(e) => setData('name', e.target.value)}
                                                 className={cn(errors?.name && "border-red-500")}
-                                                placeholder="A, B, C, Aula, dll"
                                             />
                                             {errors?.name && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.name}</p>
@@ -316,45 +367,58 @@ const clearImageFile = () => {
                                         </div>
 
                                         <div>
-                                        <Label htmlFor="code">Kode Ruangan *</Label>
-                                        <Input
-                                          id="code"
-                                          type="text"
-                                          value={data.code}
-                                          onChange={(e) => setData('code', e.target.value)}
-                                          className={cn(errors?.code && "border-red-500")}
-                                          placeholder="Contoh: R001"
-                                        />
-                                        {errors?.code && (
-                                          <p className="text-sm text-red-600 mt-1">{errors.code}</p>
-                                        )}
-                                      </div>
+                                            <Label htmlFor="code">Kode Ruangan *</Label>
+                                            <Input
+                                                id="code"
+                                                type="text"
+                                                value={data.code}
+                                                onChange={(e) => setData('code', e.target.value)}
+                                                className={cn(errors?.code && "border-red-500")}
+                                            />
+                                            {errors?.code && (
+                                                <p className="text-sm text-red-600 mt-1">{errors.code}</p>
+                                            )}
+                                        </div>
 
                                         <div>
-                                            <Label htmlFor="capacity">Kapasitas (Orang) *</Label>
+                                            <Label htmlFor="capacity">Kapasitas *</Label>
                                             <Input
                                                 id="capacity"
                                                 type="number"
                                                 min="1"
-                                                max="1000"
                                                 value={data.capacity}
-                                               onChange={(e) => setData('capacity', e.target.value ? parseInt(e.target.value) : '')}
+                                                onChange={(e) => setData('capacity', parseInt(e.target.value) || 1)}
                                                 className={cn(errors?.capacity && "border-red-500")}
                                             />
                                             {errors?.capacity && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.capacity}</p>
                                             )}
                                         </div>
+
+                                        <div>
+                                            <Label htmlFor="status">Status *</Label>
+                                            <Select 
+                                                value={data.status} 
+                                                onValueChange={(value) => setData('status', value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="tersedia">Tersedia</SelectItem>
+                                                    <SelectItem value="dipakai">Terpakai</SelectItem>
+                                                    <SelectItem value="pemeliharaan">Maintenance</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
 
                                     <div>
-                                        <Label htmlFor="full_name">Nama Lengkap Ruangan</Label>
+                                        <Label htmlFor="full_name">Nama Lengkap</Label>
                                         <Input
                                             id="full_name"
-                                            type="text"
                                             value={data.full_name}
                                             onChange={(e) => setData('full_name', e.target.value)}
-                                            placeholder="Ruang Rapat A - Lantai 2"
                                         />
                                     </div>
 
@@ -362,10 +426,8 @@ const clearImageFile = () => {
                                         <Label htmlFor="location">Lokasi</Label>
                                         <Input
                                             id="location"
-                                            type="text"
                                             value={data.location}
                                             onChange={(e) => setData('location', e.target.value)}
-                                            placeholder="Lantai 2, Gedung Utama"
                                         />
                                     </div>
 
@@ -375,56 +437,22 @@ const clearImageFile = () => {
                                             id="description"
                                             value={data.description}
                                             onChange={(e) => setData('description', e.target.value)}
-                                            placeholder="Deskripsi ruangan, fungsi utama, dll"
                                             rows={3}
                                         />
                                     </div>
+
+                                    {isAdmin && (
+                                        <div className="flex items-center space-x-2">
+                                           <Switch
+                                            id="is_active"
+                                            checked={!!data.is_active}
+                                            onCheckedChange={(checked) => setData('is_active', checked)}
+                                            />
+                                            <Label htmlFor="is_active">Ruangan Aktif</Label>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
-
-                            {/* Status & Settings */}
-                            {isAdmin && (
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center">
-                                            <Settings className="h-5 w-5 mr-2" />
-                                            Status & Pengaturan
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <Label htmlFor="status">Status Ruangan</Label>
-                                                <Select 
-                                                    value={data.status} 
-                                                    onValueChange={(value) => setData('status', value as any)}
-                                                >
-                                                    <SelectTrigger className={cn(errors?.status && "border-red-500")}>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="tersedia">Tersedia</SelectItem>
-                                                        <SelectItem value="dipakai">Terpakai</SelectItem>
-                                                        <SelectItem value="pemeliharaan">Maintenance</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                {errors?.status && (
-                                                    <p className="text-sm text-red-600 mt-1">{errors.status}</p>
-                                                )}
-                                            </div>
-
-                                            <div className="flex items-center space-x-2">
-                                                <Switch
-                                                    id="is_active"
-                                                    checked={data.is_active}
-                                                    onCheckedChange={(checked) => setData('is_active', checked ? 1 : 0)}
-                                                />
-                                                <Label htmlFor="is_active">Ruangan Aktif</Label>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
 
                             {/* Facilities */}
                             <Card>
@@ -433,22 +461,22 @@ const clearImageFile = () => {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div>
-                                        <Label className="text-sm font-medium">Fasilitas Umum</Label>
+                                        <Label>Fasilitas Umum</Label>
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                                            {commonFacilities.map((facility: string) => (
+                                            {commonFacilities.map((facility) => (
                                                 <div key={facility} className="flex items-center space-x-2">
                                                     <Checkbox
                                                         id={`facility-${facility}`}
                                                         checked={facilitiesList.includes(facility)}
-                                                        onCheckedChange={(checked: boolean) => {
+                                                        onCheckedChange={(checked) => {
                                                             if (checked) {
                                                                 const newList = [...facilitiesList, facility];
                                                                 setFacilitiesList(newList);
-                                                                setData('facilities', newList.filter(item => item.trim() !== ''));
+                                                                setData('facilities', newList);
                                                             } else {
                                                                 const newList = facilitiesList.filter(f => f !== facility);
                                                                 setFacilitiesList(newList);
-                                                                setData('facilities', newList.filter(item => item.trim() !== ''));
+                                                                setData('facilities', newList);
                                                             }
                                                         }}
                                                     />
@@ -459,49 +487,43 @@ const clearImageFile = () => {
                                             ))}
                                         </div>
                                     </div>
-                            <div>
-                                <Label>Fasilitas Tambahan</Label>
-                                <div className="space-y-2 mt-2">
-                                    {facilitiesList.map((facility: string, index: number) => {
-                                        // Hanya render input untuk fasilitas yang bukan bagian dari fasilitas umum
-                                        if (!commonFacilities.includes(facility)) {
-                                            return (
+
+                                    <div>
+                                        <Label>Fasilitas Tambahan</Label>
+                                        <div className="space-y-2 mt-2">
+                                            {facilitiesList.filter(f => !commonFacilities.includes(f)).map((facility, index) => (
                                                 <div key={index} className="flex items-center space-x-2">
                                                     <Input
                                                         type="text"
                                                         value={facility}
-                                                        onChange={(e) => updateFacility(index, e.target.value)}
-                                                        placeholder="Nama fasilitas"
+                                                        onChange={(e) => updateFacility(facilitiesList.indexOf(facility), e.target.value)}
                                                         className="flex-1"
                                                     />
                                                     <Button
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={() => removeFacility(index)}
+                                                        onClick={() => removeFacility(facilitiesList.indexOf(facility))}
                                                     >
                                                         <Minus className="h-4 w-4" />
                                                     </Button>
                                                 </div>
-                                            );
-                                        }
-                                        return null; // Jangan render apapun untuk fasilitas umum di bagian ini
-                                    })}
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={addFacility}
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Tambah Fasilitas
-                                    </Button>
-                                </div>
-                            </div>
+                                            ))}
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={addFacility}
+                                            >
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Tambah Fasilitas
+                                            </Button>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
 
-                          {/* Image */}
+                            {/* Image Upload */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center">
@@ -511,14 +533,14 @@ const clearImageFile = () => {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div>
-                                        <Label htmlFor="image">Pilih File Gambar</Label>
+                                        <Label htmlFor="image">Upload Gambar Baru</Label>
                                         <div className="flex items-center space-x-2">
                                             <Input
                                                 id="image"
                                                 type="file"
                                                 accept="image/*"
                                                 onChange={handleImageFileChange}
-                                                className="flex-1 cursor-pointer"
+                                                className="flex-1"
                                             />
                                             {data.image && (
                                                 <Button
@@ -532,21 +554,118 @@ const clearImageFile = () => {
                                             )}
                                         </div>
                                         <p className="text-sm text-gray-500 mt-1">
-                                            Pilih file gambar dari komputer Anda.
+                                            Kosongkan jika tidak ingin mengubah gambar
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* ✅ Layout Ruangan - IMPROVED */}
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center">
+                                        <Camera className="h-5 w-5 mr-2" />
+                                        Layout Ruangan
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Tambah atau ganti layout ruangan (layout lama akan diganti)
+                                    </CardDescription>
+                                </CardHeader>
+
+                                <CardContent className="space-y-4">
+                                    {/* Upload Layout Baru */}
+                                    <div>
+                                        <Label htmlFor="layouts">Upload Layout Baru (Multiple Files)</Label>
+                                        <div className="flex items-center space-x-2">
+                                            <Input
+                                                id="layouts"
+                                                type="file"
+                                                multiple
+                                                accept="image/*"
+                                                onChange={handleLayoutsChange}
+                                                className="flex-1"
+                                            />
+                                            {data.layouts.length > 0 && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={clearNewLayouts}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            {data.layouts.length > 0 
+                                                ? `${data.layouts.length} file baru dipilih. Layout lama akan diganti.`
+                                                : 'Kosongkan jika tidak ingin mengubah layout'
+                                            }
                                         </p>
                                     </div>
 
-                                    {imagePreview && (
-                                        <div className="mt-4">
-                                            <Label>Preview Gambar</Label>
-                                            <div className="border rounded-lg overflow-hidden bg-gray-50 mt-2">
-                                                <img
-                                                    src={imagePreview}
-                                                    alt="Preview ruangan"
-                                                    className="w-full h-48 object-cover"
-                                                />
+                                    {/* Preview Layout Baru */}
+                                    {newLayoutPreviews.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-700 mb-2">
+                                                Preview Layout Baru ({newLayoutPreviews.length}):
+                                            </h4>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                {newLayoutPreviews.map((preview, index) => (
+                                                    <div key={index} className="relative">
+                                                        <img
+                                                            src={preview}
+                                                            alt={`Layout Baru ${index + 1}`}
+                                                            className="w-full h-32 object-cover rounded-lg border-2 border-green-500"
+                                                        />
+                                                        <span className="absolute bottom-1 left-1 bg-green-600 text-white text-xs px-2 py-0.5 rounded">
+                                                            Baru {index + 1}
+                                                        </span>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
+                                    )}
+
+                                    {/* Layout Lama */}
+                                    {existingLayouts.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-700 mb-2">
+                                                Layout Saat Ini ({existingLayouts.length}):
+                                                {data.layouts.length > 0 && (
+                                                    <span className="text-orange-600 ml-2 text-xs">
+                                                        (akan diganti jika Anda upload layout baru)
+                                                    </span>
+                                                )}
+                                            </h4>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                {existingLayouts.map((path, index) => (
+                                                    <div key={index} className="relative">
+                                                        <img
+                                                            src={`/${path}`}
+                                                            alt={`Layout Lama ${index + 1}`}
+                                                            className={cn(
+                                                                "w-full h-32 object-cover rounded-lg border",
+                                                                data.layouts.length > 0 && "opacity-50"
+                                                            )}
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = 
+                                                                    'https://placehold.co/400x300/e5e7eb/6b7280?text=No+Layout';
+                                                            }}
+                                                        />
+                                                        <span className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                                                            Lama {index + 1}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {existingLayouts.length === 0 && newLayoutPreviews.length === 0 && (
+                                        <p className="text-sm text-gray-500 italic text-center py-4">
+                                            Belum ada layout tersimpan. Upload file untuk menambahkan layout.
+                                        </p>
                                     )}
                                 </CardContent>
                             </Card>
@@ -554,90 +673,45 @@ const clearImageFile = () => {
 
                         {/* Sidebar */}
                         <div className="space-y-6">
-                            {/* Current Status */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Status Saat Ini</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-gray-600">Status:</span>
-                                            <Badge 
-                                                variant="outline" 
-                                                className={cn("text-xs", 
-                                                    room.status === 'tersedia' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
-                                                    room.status === 'dipakai' ? 'border-orange-200 bg-orange-50 text-orange-700' :
-                                                    room.status === 'pemeliharaan' ? 'border-yellow-200 bg-yellow-50 text-yellow-700' :
-                                                    'border-red-200 bg-red-50 text-red-700'
-                                                )}
-                                            >
-                                                {room.status === 'tersedia' ? 'Tersedia' :
-                                                 room.status === 'dipakai' ? 'Terpakai' :
-                                                 'Pemeliharaan'}
-                                            </Badge>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-gray-600">Aktif:</span>
-                                            <Badge 
-                                                variant="outline" 
-                                                className={cn("text-xs", 
-                                                    room.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
-                                                    'border-red-200 bg-red-50 text-red-700'
-                                                )}
-                                            >
-                                                {room.is_active ? 'Ya' : 'Tidak'}
-                                            </Badge>
-                                        </div>
-                                        {room.current_borrowing && (
-                                            <div className="p-3 bg-orange-50 rounded-lg">
-                                                <p className="text-sm font-medium text-orange-800">
-                                                    Sedang Dipinjam
-                                                </p>
-                                                <p className="text-xs text-orange-600">
-                                                    {room.current_borrowing.borrower_name}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
                             {/* Summary */}
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Ringkasan Perubahan</CardTitle>
+                                    <CardTitle>Ringkasan</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between text-sm">
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
                                             <span className="text-gray-600">Nama:</span>
-                                            <span className="font-medium">{data.name || 'Belum diisi'}</span>
+                                            <span className="font-medium">{data.name}</span>
                                         </div>
-                                        <div className="flex justify-between text-sm">
+                                        <div className="flex justify-between">
                                             <span className="text-gray-600">Kapasitas:</span>
                                             <span className="font-medium">{data.capacity} orang</span>
                                         </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-600">Lokasi:</span>
-                                            <span className="font-medium">{data.location || 'Belum diisi'}</span>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">Status:</span>
+                                            <Badge variant="outline">
+                                                {data.status === 'tersedia' ? 'Tersedia' :
+                                                 data.status === 'dipakai' ? 'Terpakai' : 'Maintenance'}
+                                            </Badge>
                                         </div>
-                                        <div className="flex justify-between text-sm">
+                                        <div className="flex justify-between">
                                             <span className="text-gray-600">Fasilitas:</span>
                                             <span className="font-medium">{data.facilities?.length || 0} item</span>
                                         </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">Layout Baru:</span>
+                                            <span className="font-medium">
+                                                {data.layouts.length > 0 ? `${data.layouts.length} file` : 'Tidak ada'}
+                                            </span>
+                                        </div>
                                     </div>
 
-                                    {Array.isArray(data.facilities) && data.facilities.length > 0 && (
-                                        <div>
-                                            <Label className="text-sm font-medium">Fasilitas Terpilih:</Label>
-                                            <div className="flex flex-wrap gap-1 mt-2">
-                                                {data.facilities.map((facility: string, index: number) => (
-                                                    <Badge key={index} variant="secondary" className="text-xs">
-                                                        {facility}
-                                                    </Badge>
-                                                ))}
-                                            </div>
+                                    {data.layouts.length > 0 && (
+                                        <div className="pt-3 border-t">
+                                            <p className="text-xs text-orange-600">
+                                                ⚠️ Layout lama akan diganti dengan {data.layouts.length} layout baru
+                                            </p>
                                         </div>
                                     )}
                                 </CardContent>

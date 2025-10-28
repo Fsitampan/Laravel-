@@ -87,7 +87,7 @@ export default function welcome({
                                 </div>
                                 <div>
                                     <h1 className="font-bold text-gray-900">BPS Riau</h1>
-                                    <p className="text-xs text-gray-600">Sistem Manajemen</p>
+                                    <p className="text-xs text-gray-600">SIPERU</p>
                                 </div>
                             </div>
 
@@ -140,8 +140,8 @@ export default function welcome({
                             </div>
                             
                             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-                                Sistem Manajemen
-                                <span className="block text-indigo-600">Ruangan Digital</span>
+                                Sistem Peminjaman Ruangan
+                                <span className="block text-indigo-600">SIPERU</span>
                             </h1>
                             
                             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
@@ -280,7 +280,7 @@ export default function welcome({
                                 </div>
                                 <div>
                                     <h3 className="font-semibold">BPS Provinsi Riau</h3>
-                                    <p className="text-sm text-gray-400">Sistem Manajemen Ruangan</p>
+                                    <p className="text-sm text-gray-400">SIPERU</p>
                                 </div>
                             </div>
                             

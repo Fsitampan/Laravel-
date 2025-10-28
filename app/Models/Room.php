@@ -15,16 +15,18 @@ class Room extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'code', 'description', 'capacity', 'status',
-        'location', 'facilities', 'notes', 'created_by', 'updated_by',
-        'image',  'is_active',
+        'name', 'code', 'full_name', 'description', 'capacity', 'status',
+        'location', 'facilities', 'layout_images', 'notes', 'created_by', 'updated_by',
+        'image', 'is_active',
     ];
 
-    // Correct casting property
+    // ✅ Casting untuk auto-parse JSON
     protected $casts = [
         'status' => RoomStatus::class,
-        'facilities' => 'array',
+        'facilities' => 'array', // ✅ Cast facilities sebagai array
         'capacity' => 'integer',
+        // JANGAN cast layout_images - biarkan accessor yang handle
+        'is_active' => 'boolean',
     ];
 
     // Auto-generate full_name when saving
@@ -33,22 +35,21 @@ class Room extends Model
         parent::boot();
 
         static::saving(function ($room) {
-            // Pastikan code/name ada sebelum membuat full_name
-            $room->full_name = "Ruang {$room->code} - {$room->name}";
+            if (!empty($room->code) && !empty($room->name)) {
+                $room->full_name = "Ruang {$room->code} - {$room->name}";
+            }
         });
     }
 
-    // Relationships
+    // ========================================
+    // RELATIONSHIPS
+    // ========================================
+    
     public function borrowings(): HasMany
     {
         return $this->hasMany(Borrowing::class);
     }
 
-    /**
-     * currentBorrowing:
-     * - kita ambil borrowing terakhir yang relevan untuk ditampilkan di UI.
-     * - gunakan whereIn agar kompatibel jika Anda memakai 'approved' atau 'active' sebagai indikator.
-     */
     public function currentBorrowing(): HasOne
     {
         return $this->hasOne(Borrowing::class)
@@ -56,7 +57,6 @@ class Room extends Model
             ->latestOfMany();
     }
 
-    // Jika Anda butuh daftar borrowings yang sedang aktif
     public function currentBorrowings(): HasMany
     {
         return $this->hasMany(Borrowing::class)
@@ -79,7 +79,10 @@ class Room extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    // Accessors
+    // ========================================
+    // ACCESSORS (Laravel 9+ Style)
+    // ========================================
+    
     protected function fullName(): Attribute
     {
         return Attribute::make(
@@ -101,30 +104,101 @@ class Room extends Model
         );
     }
 
-     /**
-     * Helper untuk URL gambar yang konsisten.
-     * @return string
+    // ========================================
+    // CUSTOM ACCESSORS (Old Style)
+    // ========================================
+    
+    /**
+     * ✅ Accessor untuk image_url (gambar utama)
      */
     public function getImageUrlAttribute(): string
     {
-        // Prioritas 1: Jika ada gambar lokal yang di-upload.
-        // Kita akses nilai asli dari kolom 'image'
         if (!empty($this->attributes['image'])) {
-            // Pastikan Anda sudah menjalankan `php artisan storage:link`
-            return asset('storage/' . $this->attributes['image']);
+            $imagePath = $this->attributes['image'];
+            $cleanPath = ltrim($imagePath, '/');
+            $cleanPath = preg_replace('#^public/#', '', $cleanPath);
+            $cleanPath = preg_replace('#^storage/#', '', $cleanPath);
+            return asset('storage/' . $cleanPath);
         }
 
-        // Prioritas 2: Jika ada link gambar eksternal yang diisi manual.
-        // Kita akses nilai asli dari kolom 'image_url' untuk menghindari rekursi
-        if (!empty($this->attributes['image_url'])) {
-            return $this->attributes['image_url'];
-        }
-
-        // Prioritas 3 (Fallback): Jika keduanya tidak ada, gunakan URL default.
-        return 'https://placehold.co/800x600/e2e8f0/7c3aed?text=Ruang%20' . urlencode($this->name);
+        return 'https://placehold.co/800x600/e2e8f0/7c3aed?text=Ruang%20' . urlencode($this->name ?? 'Unknown');
     }
 
-    // Helper methods
+    /**
+     * ✅✅✅ FIXED: Accessor untuk layout_images
+     * Pastikan TIDAK ada double encoding
+     */
+    public function getLayoutImagesAttribute(): array
+    {
+        $rawData = $this->attributes['layout_images'] ?? null;
+        
+        if (empty($rawData) || is_null($rawData)) {
+            return [];
+        }
+
+        $paths = [];
+        if (is_string($rawData)) {
+            try {
+                $decoded = json_decode($rawData, true);
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    \Log::error("Room {$this->id} - JSON decode error: " . json_last_error_msg());
+                    return [];
+                }
+                
+                $paths = is_array($decoded) ? $decoded : [];
+            } catch (\Exception $e) {
+                \Log::error("Room {$this->id} - Failed to parse layout_images: " . $e->getMessage());
+                return [];
+            }
+        } elseif (is_array($rawData)) {
+            $paths = $rawData;
+        } else {
+            return [];
+        }
+
+        if (empty($paths)) {
+            return [];
+        }
+
+        // Convert ke URL lengkap
+        $urls = array_map(function ($path) {
+            if (empty($path)) {
+                return null;
+            }
+            
+            if (is_string($path) && filter_var($path, FILTER_VALIDATE_URL)) {
+                return $path;
+            }
+
+            if (is_array($path)) {
+                $path = reset($path);
+                if (empty($path)) {
+                    return null;
+                }
+            }
+
+            if (!is_string($path)) {
+                return null;
+            }
+
+            $cleanPath = ltrim($path, '/');
+            $cleanPath = preg_replace('#^public/#', '', $cleanPath);
+            $cleanPath = preg_replace('#^storage/#', '', $cleanPath);
+            
+            return asset('storage/' . $cleanPath);
+        }, $paths);
+
+        // Filter null values dan reset keys
+        $urls = array_values(array_filter($urls, fn($url) => !is_null($url)));
+        
+        return $urls;
+    }
+
+    // ========================================
+    // HELPER METHODS
+    // ========================================
+    
     public function isAvailable(): bool
     {
         return $this->status === RoomStatus::TERSEDIA;
@@ -142,7 +216,6 @@ class Room extends Model
 
     public function hasActiveBorrowing(): bool
     {
-        // mempertimbangkan approved/active sesuai currentBorrowing
         return $this->borrowings()->whereIn('status', ['approved', 'active'])->exists();
     }
 
@@ -151,7 +224,31 @@ class Room extends Model
         return $this->borrowings()->whereIn('status', ['approved', 'active'])->with('user')->first();
     }
 
-    // Scopes
+    public function refreshRoomStatus(): void
+    {
+        $borrowing = $this->currentBorrowing;
+
+        if ($borrowing) {
+            $statusValue = is_object($borrowing->status) && property_exists($borrowing->status, 'value')
+                ? $borrowing->status->value
+                : (string) $borrowing->status;
+
+            if ($statusValue === 'active') {
+                $this->status = RoomStatus::DIPAKAI;
+            } elseif ($statusValue === 'approved') {
+                $this->status = RoomStatus::TERSEDIA;
+            }
+        } else {
+            $this->status = RoomStatus::TERSEDIA;
+        }
+
+        $this->save();
+    }
+
+    // ========================================
+    // SCOPES
+    // ========================================
+    
     public function scopeAvailable($query)
     {
         return $query->where('status', RoomStatus::TERSEDIA);
@@ -166,29 +263,39 @@ class Room extends Model
     {
         return $query->where('status', RoomStatus::PEMELIHARAAN);
     }
+
+    // ========================================
+    // FOR INERTIA.JS
+    // ========================================
     
-        public function refreshRoomStatus(): void
-    {
-        $borrowing = $this->currentBorrowing;
-
-        if ($borrowing) {
-            if ($borrowing->status->value === 'active') {
-                $this->status = \App\Enums\RoomStatus::DIPAKAI;
-            } elseif ($borrowing->status->value === 'approved') {
-                $this->status = \App\Enums\RoomStatus::TERSEDIA; // masih disetujui tapi belum mulai
-            }
-        } else {
-            $this->status = \App\Enums\RoomStatus::TERSEDIA;
-        }
-
-        $this->save();
-    }
-
-
-    // For Inertia.js sharing
+    /**
+     * ✅✅✅ FINAL FIX: toInertiaArray dengan proper handling
+     */
     public function toInertiaArray(): array
     {
         $current = $this->currentBorrowing;
+
+        // ✅ Handle facilities - pastikan tidak double-encoded
+        $facilities = $this->facilities; // Ini sudah array karena casting
+        
+        // ✅ Jika masih berupa string yang ter-encode, decode lagi
+        if (is_array($facilities) && count($facilities) === 1 && is_string($facilities[0])) {
+            $firstElement = $facilities[0];
+            // Check if it's a JSON string
+            if (is_string($firstElement) && (str_starts_with($firstElement, '[') || str_starts_with($firstElement, '{'))) {
+                try {
+                    $decoded = json_decode($firstElement, true);
+                    if (is_array($decoded)) {
+                        $facilities = $decoded;
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning("Failed to decode facilities for room {$this->id}");
+                }
+            }
+        }
+
+        // ✅ Handle layout images
+        $layoutImages = $this->layout_images;
 
         return [
             'id' => $this->id,
@@ -198,23 +305,31 @@ class Room extends Model
             'description' => $this->description,
             'capacity' => $this->capacity,
             'location' => $this->location,
-            'status' => is_object($this->status) && method_exists($this->status, 'value') ? $this->status->value : $this->status,
+            'notes' => $this->notes,
+            'is_active' => $this->is_active,
+            
+            'status' => is_object($this->status) && method_exists($this->status, 'value') 
+                ? $this->status->value 
+                : $this->status,
             'status_label' => is_object($this->status) ? $this->status->label() : $this->status,
             'status_color' => is_object($this->status) ? $this->status->color() : null,
-            'facilities' => $this->facilities,
-            'notes' => $this->notes,
+            
+            // ✅ Facilities yang sudah di-clean
+            'facilities' => $facilities,
+            
+            // ✅ Images
+            'image' => $this->attributes['image'] ?? null,
+            'image_url' => $this->image_url,
+            'layout_images' => $layoutImages,
+            
             'is_available' => $this->isAvailable(),
             'is_occupied' => $this->isOccupied(),
             'is_under_maintenance' => $this->isUnderMaintenance(),
             'has_active_borrowing' => $this->hasActiveBorrowing(),
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
-            'image' => $this->image,
-            'image_url' => $this->image_url ?? $this->image_url, // tetap kirim apa adanya
-            // kirim image_url computed agar front-end mudah pakai
-            'computed_image_url' => $this->image_url ?? $this->getImageUrlAttribute(),
-
-            // Tambahan: informasi current borrowing agar UI bisa menampilkan nama peminjam
+            
+            'created_at' => $this->created_at?->toISOString(),
+            'updated_at' => $this->updated_at?->toISOString(),
+            
             'current_borrowing' => $current ? [
                 'id' => $current->id,
                 'borrower_name' => $current->borrower_name,
@@ -223,7 +338,7 @@ class Room extends Model
                 'start_time' => $current->start_time ?? null,
                 'end_time' => $current->end_time ?? null,
                 'purpose' => $current->purpose ?? null,
-                'status' => $current->status ?? null,
+                'status' => is_object($current->status) ? $current->status->value : $current->status,
             ] : null,
         ];
     }

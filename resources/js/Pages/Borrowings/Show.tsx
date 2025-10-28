@@ -23,7 +23,9 @@ import {
     CalendarDays,
     Activity,
     FileText,
-    ChevronRight
+    ChevronRight,
+    Image as ImageIcon,
+    Layout
 } from 'lucide-react';
 import { cn, formatDateTime, getStatusColor, getStatusLabel, getUserInitials } from '@/lib/utils';
 import type { PageProps, Borrowing } from '@/types';
@@ -33,18 +35,13 @@ interface ShowBorrowingPageProps extends PageProps {
 }
 
 // Mock data untuk gambar ruangan - dalam production akan dari database
-const getRoomImage = (roomName: string): string => {
-    const imageMap: { [key: string]: string } = {
-        'A': 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb25mZXJlbmNlJTIwcm9vbSUyMG1lZXRpbmd8ZW58MXx8fHwxNzU3Mjk3MTExfDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'B': 'https://images.unsplash.com/photo-1692133226337-55e513450a32?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFsbCUyMG1lZXRpbmclMjByb29tJTIwb2ZmaWNlfGVufDF8fHx8MTc1NzQwMzg5MHww&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'C': 'https://images.unsplash.com/photo-1750768145390-f0ad18d3e65b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwcm9vbSUyMHByb2plY3RvcnxlbnwxfHx8fDE3NTc0MDM5MDJ8MA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'D': 'https://images.unsplash.com/photo-1719845853806-1c54b0ed37c5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaXNjdXNzaW9uJTIwcm9vbSUyMHdoaXRlYm9hcmR8ZW58MXx8fHwxNzU3NDAzOTA2fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'E': 'https://images.unsplash.com/photo-1689150571822-1b573b695391?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdWRpdG9yaXVtJTIwc2VtaW5hciUyMGhhbGx8ZW58MXx8fHwxNzU3NDAzODk0fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral',
-        'F': 'https://images.unsplash.com/photo-1589639293663-f9399bb41721?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBib2FyZHJvb20lMjBvZmZpY2V8ZW58MXx8fHwxNzU3NDAzODk4fDA&ixlib=rb-4.0.3&q=80&w=1080&utm_source=figma&utm_medium=referral'
-    };
-    
-    const roomCode = roomName.toUpperCase();
-    return imageMap[roomCode] || imageMap['A']; // Default fallback
+   const getRoomImage = (room: any): string => {
+    if (!room) {
+        return 'https://placehold.co/800x600/e2e8f0/64748b?text=Tidak+Ada+Ruangan';
+    }
+    if (room.image_url) return room.image_url;
+    if (room.image) return `/storage/${room.image}`;
+    return `https://placehold.co/800x600/e2e8f0/64748b?text=Ruang+${encodeURIComponent(room.name || 'X')}`;
 };
 
 export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProps) {
@@ -114,10 +111,14 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                         {/* Room Preview Image */}
                         <Card className="border-0 shadow-sm overflow-hidden">
                             <div className="relative h-64 sm:h-80">
-                                <img
-                                    src={getRoomImage(borrowing.room?.name || 'A')}
+                           <img
+                                    src={getRoomImage(borrowing.room)}
                                     alt={`Preview Ruang ${borrowing.room?.name}`}
                                     className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src =
+                                            `https://placehold.co/800x600/e2e8f0/64748b?text=Ruang+${encodeURIComponent(borrowing.room?.name || 'X')}`;
+                                    }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                                 
@@ -132,7 +133,7 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                                 {/* Room Info Overlay */}
                                 <div className="absolute bottom-4 left-4 right-4">
                                     <div className="bg-black/70 backdrop-blur-sm rounded-lg p-4">
-                                        <h2 className="text-white text-2xl font-bold">Ruang {borrowing.room?.name}</h2>
+                                        <h2 className="text-white text-2xl font-bold"> {borrowing.room?.name}</h2>
                                         <div className="flex items-center gap-4 mt-2 text-white/90 text-sm">
                                             <div className="flex items-center gap-1">
                                                 <Users className="h-4 w-4" />
@@ -149,6 +150,53 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                                 </div>
                             </div>
                         </Card>
+
+                        {/* ✅ Layout Ruangan yang Dipilih */}
+                        {borrowing.layout_choice && (
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Layout className="h-5 w-5" />
+                                        Layout Ruangan yang Dipilih
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Tata letak ruangan yang diminta untuk peminjaman ini
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="relative rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
+                                        <img
+                                            src={borrowing.layout_choice}
+                                            alt="Layout Ruangan yang Dipilih"
+                                            className="w-full h-auto object-contain"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = 
+                                                    "https://placehold.co/800x600/e5e7eb/6b7280?text=Layout+Not+Available";
+                                            }}
+                                        />
+                                        <div className="absolute top-3 right-3">
+                                            <Badge variant="default" className="backdrop-blur-sm bg-blue-600">
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Layout Dipilih
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Info tambahan */}
+                                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="flex items-start gap-2">
+                                            <ImageIcon className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <p className="text-sm font-medium text-blue-900">Catatan Layout</p>
+                                                <p className="text-sm text-blue-700 mt-1">
+                                                    Layout ini akan disiapkan sesuai dengan gambar di atas untuk kegiatan Anda.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Borrowing Information */}
                         <Card className="border-0 shadow-sm">
@@ -311,7 +359,7 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <Button variant="outline" size="sm" className="w-full justify-start" asChild>
-                                    <Link href={`/rooms/${borrowing.room?.id}`}>
+                                    <Link href={`/Rooms/${borrowing.room?.id}`}>
                                         <Building2 className="h-4 w-4 mr-2" />
                                         Lihat Detail Ruangan
                                         <ChevronRight className="h-4 w-4 ml-auto" />
@@ -327,7 +375,7 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                                 </Button>
 
                                 <Button variant="outline" size="sm" className="w-full justify-start" asChild>
-                                    <Link href="/Borrowings/create">
+                                    <Link href="/Borrowings/Create">
                                         <Calendar className="h-4 w-4 mr-2" />
                                         Buat Peminjaman Baru
                                         <ChevronRight className="h-4 w-4 ml-auto" />
@@ -335,6 +383,40 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                                 </Button>
                             </CardContent>
                         </Card>
+
+                        {/* ✅ Layout Info di Sidebar */}
+                        {borrowing.layout_choice && (
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Layout className="h-5 w-5" />
+                                        Layout Terpilih
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Preview layout ruangan
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="relative rounded-lg overflow-hidden border">
+                                        <img
+                                            src={borrowing.layout_choice}
+                                            alt="Layout Preview"
+                                            className="w-full h-32 object-cover"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = 
+                                                    "https://placehold.co/300x200/e5e7eb/6b7280?text=Layout";
+                                            }}
+                                        />
+                                        <div className="absolute top-2 right-2">
+                                            <Badge variant="secondary" className="text-xs backdrop-blur-sm bg-white/90">
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Terpilih
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Status History */}
                         <Card className="border-0 shadow-sm">
@@ -406,7 +488,7 @@ export default function ShowBorrowing({ auth, borrowing }: ShowBorrowingPageProp
                                     <div className="space-y-3">
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Nama:</span>
-                                            <span className="font-medium">Ruang {borrowing.room.name}</span>
+                                            <span className="font-medium"> {borrowing.room.name}</span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Kapasitas:</span>
