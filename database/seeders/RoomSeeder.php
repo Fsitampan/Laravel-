@@ -20,11 +20,11 @@ class RoomSeeder extends Seeder
                 'name' => 'Ruang Sungkai',
                 'code' => 'A',
                 'description' => 'Ruang rapat dengan kapasitas 20 orang, dilengkapi meja rapat besar dan proyektor.',
-                'image' => 'rooms/sungkai.jpg',
+                'image' => 'rooms/sungkai.jpg', // ✅ Path relatif dari storage/app/public
                 'capacity' => 20,
                 'status' => 'tersedia',
                 'location' => 'Lantai 2',
-                'facilities' => json_encode([
+                'facilities' => [ // ✅ Langsung array, Laravel otomatis cast ke JSON
                     'AC Split',
                     'Proyektor LCD',
                     'Screen Proyektor',
@@ -35,7 +35,7 @@ class RoomSeeder extends Seeder
                     'Whiteboard',
                     'Flip Chart',
                     'Telepon Konferensi'
-                ]),
+                ],
                 'notes' => 'Ruangan rapat',
                 'created_by' => 1,
                 'updated_by' => 1,
@@ -47,7 +47,7 @@ class RoomSeeder extends Seeder
                 'capacity' => 20,
                 'status' => 'tersedia',
                 'location' => 'Lantai 2',
-                'facilities' => json_encode([
+                'facilities' => [
                     'AC Split',
                     'Proyektor LCD',
                     'Screen Proyektor',
@@ -56,7 +56,7 @@ class RoomSeeder extends Seeder
                     'Kursi Kantor',
                     'Whiteboard',
                     'Flip Chart'
-                ]),
+                ],
                 'notes' => 'Ruangan untuk koordinasi dan meeting rutin',
                 'created_by' => 1,
                 'updated_by' => 1,
@@ -66,10 +66,10 @@ class RoomSeeder extends Seeder
                 'code' => 'C',
                 'description' => 'Aula utama BPS yang dapat digunakan untuk acara besar dan rapat umum.',
                 'capacity' => 100,
-                'image' => 'rooms/aula.jpg',
+                'image' => 'public/storage/rooms/aula.jpg',
                 'status' => 'dipakai',
                 'location' => 'Lantai 3',
-                'facilities' => json_encode([
+                'facilities' => [
                     'AC Central',
                     'Proyektor LCD HD',
                     'Screen Besar',
@@ -79,7 +79,7 @@ class RoomSeeder extends Seeder
                     'Kursi Auditorium',
                     'Panggung Kecil',
                     'Pencahayaan Optimal'
-                ]),
+                ],
                 'notes' => 'Ruangan serbaguna untuk acara besar',
                 'created_by' => 1,
                 'updated_by' => 1,
@@ -91,7 +91,7 @@ class RoomSeeder extends Seeder
                 'capacity' => 10,
                 'status' => 'tersedia',
                 'location' => 'Lantai 3',
-                'facilities' => json_encode([
+                'facilities' => [
                     'AC Split',
                     'TV LED 55 inch',
                     'WiFi',
@@ -100,7 +100,7 @@ class RoomSeeder extends Seeder
                     'Whiteboard Kecil',
                     'Marker Set',
                     'Dispenser Air'
-                ]),
+                ],
                 'notes' => 'Ruangan santai untuk diskusi tim kecil',
                 'created_by' => 1,
                 'updated_by' => 1,
@@ -112,7 +112,7 @@ class RoomSeeder extends Seeder
                 'capacity' => 6,
                 'status' => 'pemeliharaan',
                 'location' => 'Lantai 1',
-                'facilities' => json_encode([
+                'facilities' => [
                     'AC Split',
                     'TV LED',
                     'WiFi',
@@ -121,7 +121,7 @@ class RoomSeeder extends Seeder
                     'Lemari Dokumen',
                     'Dispenser Air',
                     'Sofa Set'
-                ]),
+                ],
                 'notes' => 'Sedang dalam pemeliharaan AC dan renovasi',
                 'created_by' => 1,
                 'updated_by' => 1,
@@ -133,7 +133,7 @@ class RoomSeeder extends Seeder
                 'capacity' => 30,
                 'status' => 'tersedia',
                 'location' => 'Lantai 2',
-                'facilities' => json_encode([
+                'facilities' => [
                     'AC Central',
                     'Proyektor Portable',
                     'Screen Portable',
@@ -143,7 +143,7 @@ class RoomSeeder extends Seeder
                     'Kursi Plastik',
                     'Whiteboard Besar',
                     'Flip Chart'
-                ]),
+                ],
                 'notes' => 'Ruangan kecil',
                 'created_by' => 1,
                 'updated_by' => 1,
