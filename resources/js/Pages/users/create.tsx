@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import InputError from '@/components/InputError';
 import { cn } from '@/lib/utils';
-import type { PageProps, CreateUserData } from '@/types';
+import type { PageProps } from '@/types';
 
 interface Role {
   value: string;
@@ -38,47 +38,42 @@ interface CreateUserPageProps extends PageProps {
   roles: Role[];
 }
 
-interface FormData {
-  name: string;
-  email: string;
-  password: string;
-  password_confirmation: string;
-  role: string;
-  category: string;
-  department: string;
-  phone: string;
-  is_active: boolean;
-  avatar: File | null;
-}
-
 export default function Create({ auth, roles }: CreateUserPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data, setData, post, processing, errors, reset } = useForm<Record<string, any>>({
+  // ✅ Fix: Proper type for useForm
+  const { data, setData, post, processing, errors, reset } = useForm({
     name: '',
     email: '',
     password: '',
     password_confirmation: '',
-    role: 'user',
+    role: 'pengguna', // ✅ Fix: Changed from 'user' to 'pengguna'
     category: 'employee',
     department: '',
     phone: '',
-    is_active: true,
-    avatar: null,
+    is_active: true as boolean,
+    avatar: null as File | null,
   });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     
-    post('/users', {
+    // ✅ Fix: Proper route name
+    post(route('users.store'), {
       forceFormData: true,
       onSuccess: () => {
         reset();
         setPreviewUrl(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       },
+      onError: (errors) => {
+        console.error('Form errors:', errors);
+      }
     });
   };
 
@@ -125,7 +120,7 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
       <Head title="Tambah Pengguna" />
 
       <div className="space-y-8">
-        {/* Enhanced Header with Professional Imagery */}
+        {/* Enhanced Header */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary-dark to-secondary p-8 text-white shadow-xl">
           <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
           <div className="relative z-10">
@@ -145,14 +140,13 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
               <div className="relative">
                 <ImageWithFallback 
                   src="https://images.unsplash.com/photo-1522206038088-8698bcefa6a0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBidXNpbmVzcyUyMHBlb3BsZSUyMHdvcmtpbmd8ZW58MXx8fHwxNzU4NTAzMDc2fDA&ixlib=rb-4.1.0&q=80&w=300"
-                  alt="Professional business team collaboration"
+                  alt="Professional business team"
                   className="w-32 h-32 object-cover rounded-2xl shadow-2xl"
                 />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-black/20 to-transparent"></div>
               </div>
             </div>
           </div>
-          {/* Background decoration */}
           <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10"></div>
           <div className="absolute -left-8 -bottom-8 h-32 w-32 rounded-full bg-white/5"></div>
         </div>
@@ -160,7 +154,7 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
         {/* Navigation */}
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" asChild>
-            <Link href="/users">
+            <Link href={route('users.Index')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Kembali ke Daftar
             </Link>
@@ -194,6 +188,9 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
                 size="xl"
                 className="items-center"
               />
+              {errors.avatar && (
+                <InputError message={errors.avatar} className="mt-2" />
+              )}
             </CardContent>
           </Card>
 
@@ -300,7 +297,7 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
                       <SelectValue placeholder="Pilih peran pengguna" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="user">Pengguna</SelectItem>
+                      <SelectItem value="pengguna">Pengguna</SelectItem>
                       <SelectItem value="admin">Administrator</SelectItem>
                       <SelectItem value="super-admin">Super Admin</SelectItem>
                     </SelectContent>
@@ -452,7 +449,7 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
                   className="sm:order-1" 
                   asChild
                 >
-                  <Link href="/users">
+                  <Link href={route('users.Index')}>
                     Batal
                   </Link>
                 </Button>
