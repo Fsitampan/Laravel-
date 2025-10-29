@@ -160,16 +160,6 @@ export default function HistoryIndex({ auth, histories, actionCounts, filters }:
                         </p>
                     </div>
                     <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-                        <Button variant="outline" onClick={() => router.reload()}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Refresh
-                        </Button>
-                        {isAdmin && (
-                            <Button variant="outline">
-                                <Download className="h-4 w-4 mr-2" />
-                                Export
-                            </Button>
-                        )}
                     </div>
                 </div>
 
