@@ -54,7 +54,11 @@ export default function Create({ auth, roles }: CreateUserPageProps) {
     category: 'employee',
     department: '',
     phone: '',
+<<<<<<< HEAD
     is_active: true as boolean,
+=======
+    is_active: true,
+>>>>>>> 1c501bb (fix users)
     avatar: null as File | null,
   });
 
