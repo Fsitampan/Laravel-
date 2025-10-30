@@ -91,6 +91,9 @@ interface RecentActivity {
     user?: string;
     room?: string;
     borrowing_id?: number;
+    status?: 'pending' | 'approved' | 'active' | 'completed' | 'rejected' | 'cancelled';
+    borrowed_at?: string;
+    planned_return_at?: string;
 }
 
 interface DashboardPageProps extends PageProps {
@@ -603,69 +606,129 @@ export default function Dashboard({
                     </Card>
 
                     {/* Recent Activities - Enhanced */}
-                    <Card className="border-0 shadow-md">
-                        <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2">
-                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-secondary-dark flex items-center justify-center text-white">
-                                        <Activity className="h-5 w-5" />
-                                    </div>
-                                    Aktivitas Terbaru
-                                </CardTitle>
-                                <Badge variant="secondary">Real-time</Badge>
-                            </div>
-                            <CardDescription>
-                                Aktivitas peminjaman dan perubahan status ruangan
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {recent_activities?.slice(0, 5).map((activity, index) => (
-                                <div 
-                                    key={activity.id} 
-                                    className="flex gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors group"
-                                    style={{ animationDelay: `${index * 50}ms` }}
-                                >
-                                    <div className="shrink-0">
-                                        <div className={cn(
-                                            "flex h-10 w-10 items-center justify-center rounded-xl shadow-sm group-hover:scale-110 transition-transform",
-                                            getActivityColor(activity.type)
-                                        )}>
-                                            {getActivityIcon(activity.type)}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0 space-y-1">
-                                        <p className="text-sm leading-tight">
-                                            {activity.title}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground leading-tight">
-                                            {activity.description}
-                                        </p>
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                            <Timer className="h-3 w-3" />
-                                            <span>{formatDateTime(activity.timestamp)}</span>
-                                            {activity.user && (
-                                                <>
-                                                    <span>•</span>
-                                                    <span className="font-medium">{activity.user}</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
+                   <Card className="border-0 shadow-md">
+                    <CardHeader className="pb-4">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2">
+                                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-secondary-dark flex items-center justify-center text-white">
+                                    <Activity className="h-5 w-5" />
                                 </div>
-                            ))}
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="w-full mt-6 group"
-                                asChild
-                            >
-                                <Link href={route('history.index')}>
-                                    <HistoryIcon className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-                                    Lihat Semua Aktivitas
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
+                                Aktivitas Peminjaman Terbaru
+                            </CardTitle>
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                                Live
+                            </Badge>
+                        </div>
+                        <CardDescription>
+                            Peminjaman yang sedang berlangsung dan baru ditambahkan
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {recent_activities && recent_activities.length > 0 ? (
+                            <>
+                                {recent_activities.map((activity, index) => (
+                                    <Link
+                                        key={activity.id}
+                                        href={`/Borrowings/${activity.borrowing_id}`}
+                                        className="block"
+                                    >
+                                        <div 
+                                            className="flex gap-3 p-4 rounded-lg hover:bg-accent/50 transition-all duration-200 group border border-transparent hover:border-primary/20"
+                                            style={{ animationDelay: `${index * 50}ms` }}
+                                        >
+                                            <div className="shrink-0">
+                                                <div className={cn(
+                                                    "flex h-12 w-12 items-center justify-center rounded-xl shadow-sm group-hover:scale-110 transition-transform",
+                                                    getActivityColor(activity.type)
+                                                )}>
+                                                    {getActivityIcon(activity.type)}
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="text-sm font-medium leading-tight">
+                                                        {activity.title}
+                                                    </p>
+                                                    <Badge 
+                                                        variant="outline" 
+                                                        className={cn(
+                                                            "shrink-0 text-xs",
+                                                            activity.status === 'pending' && "border-yellow-500 text-yellow-700 bg-yellow-50",
+                                                            activity.status === 'approved' && "border-blue-500 text-blue-700 bg-blue-50",
+                                                            activity.status === 'active' && "border-emerald-500 text-emerald-700 bg-emerald-50"
+                                                        )}
+                                                    >
+                                                        {activity.status === 'pending' && 'Menunggu'}
+                                                        {activity.status === 'approved' && 'Disetujui'}
+                                                        {activity.status === 'active' && 'Aktif'}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground leading-tight line-clamp-2">
+                                                    {activity.description}
+                                                </p>
+                                                <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
+                                                    <div className="flex items-center gap-1">
+                                                        <User className="h-3 w-3" />
+                                                        <span className="font-medium">{activity.user}</span>
+                                                    </div>
+                                                    <span>•</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <Building2 className="h-3 w-3" />
+                                                        <span>{activity.room}</span>
+                                                    </div>
+                                                    <span>•</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" />
+                                                        <span>{formatDateTime(activity.timestamp)}</span>
+                                                    </div>
+                                                </div>
+                                                {activity.borrowed_at && (
+                                                    <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
+                                                        <Calendar className="h-3 w-3" />
+                                                        <span>
+                                                            {formatDateTime(activity.borrowed_at)}
+                                                            {activity.planned_return_at && (
+                                                                <> - {formatDateTime(activity.planned_return_at)}</>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 mt-1" />
+                                        </div>
+                                    </Link>
+                                ))}
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="w-full mt-4 group"
+                                    asChild
+                                >
+                                    <Link href={route('Borrowings.Index')}>
+                                        <Eye className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                                        Lihat Semua Peminjaman
+                                    </Link>
+                                </Button>
+                            </>
+                        ) : (
+                            <div className="text-center py-8">
+                                <div className="h-16 w-16 rounded-full bg-muted mx-auto mb-3 flex items-center justify-center">
+                                    <Activity className="h-8 w-8 text-muted-foreground" />
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    Belum ada aktivitas peminjaman
+                                </p>
+                                <Button size="sm" asChild variant="outline">
+                                    <Link href={route('Borrowings.create')}>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Buat Peminjaman
+                                    </Link>
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
                 </div>
 
                 {/* Monthly Bookings Chart - Enhanced */}

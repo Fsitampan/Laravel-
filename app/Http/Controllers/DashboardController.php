@@ -135,17 +135,41 @@ class DashboardController extends Controller
         }
 
         // Recent activities
-        $recentActivities = Borrowing::with(['user', 'room'])
-            ->orderBy('updated_at', 'desc')
+   $recentActivities = Borrowing::with(['user', 'room'])
+            ->whereIn('status', ['pending', 'approved', 'active'])
+            ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get()
             ->map(function ($borrowing) {
+                $activityType = match($borrowing->status) {
+                    'pending' => 'borrowing_created',
+                    'approved' => 'borrowing_approved',
+                    'active' => 'borrowing_active',
+                    default => 'borrowing_created',
+                };
+
+                $title = match($borrowing->status) {
+                    'pending' => 'Peminjaman Baru Menunggu Persetujuan',
+                    'approved' => 'Peminjaman Disetujui',
+                    'active' => 'Ruangan Sedang Digunakan',
+                    default => 'Peminjaman Baru',
+                };
+
+                //  deskripsi yang informatif
+                $description = "Ruang {$borrowing->room->name} - {$borrowing->purpose}";
+                if (!empty($borrowing->participant_count)) {
+                    $description .= " ({$borrowing->participant_count} peserta)";
+                }
+
                 return [
                     'id' => $borrowing->id,
-                    'title' => $this->getActivityTitle($borrowing->status),
-                    'description' => "{$borrowing->user->name} - Ruang {$borrowing->room->name}",
-                    'timestamp' => $borrowing->updated_at->toISOString(),
-                    'user' => $borrowing->user->name,
+                    'type' => $activityType,
+                    'title' => $title,
+                    'description' => $description,
+                    'timestamp' => $borrowing->created_at->toIso8601String(),
+                    'user' => $borrowing->user->name ?? $borrowing->borrower_name,
+                    'room' => $borrowing->room->name,
+                    'borrowing_id' => $borrowing->id,
                 ];
             });
 
